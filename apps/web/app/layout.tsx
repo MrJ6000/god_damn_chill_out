@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { DemoBar } from "@/components/DemoBar";
 
 export const metadata: Metadata = {
   title: "PolicyVault Sentinel",
@@ -9,7 +10,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-ink text-body">{children}</body>
+      <body className="min-h-screen bg-ink text-body">
+        <DemoBar />
+        <div className="pt-[88px]">{children}</div>
+      </body>
     </html>
   );
 }

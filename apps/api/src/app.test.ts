@@ -12,7 +12,8 @@ import type {
 } from "@pv/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
-import { evaluateMockPolicy, type RuntimeConfig } from "./mock.js";
+import type { RuntimeConfig } from "./mock.js";
+import { evaluatePolicy } from "./policy.js";
 import type { StoredPaymentRecord } from "./store.js";
 
 const fixtureDataDir = fileURLToPath(new URL("../../../data", import.meta.url));
@@ -84,7 +85,6 @@ describe("PolicyVault mock API contract", () => {
         policyVersion: "V18",
         maxPerTxDisplay: 5_000,
         maxPer24hDisplay: 10_000,
-        approvalThresholdDisplay: 2_000,
         sessionExpiresAt: "2026-09-07T23:59:00Z",
         treasuryBalanceDisplay: 2_000_000,
       },
@@ -223,6 +223,62 @@ describe("PolicyVault mock API contract", () => {
       "DUPLICATE_PAYMENT",
       "APPROVAL_REQUIRED",
     ]);
+  });
+
+  it("uses the deterministic policy engine for API evaluations", async () => {
+    const [intent] = await plan([(await invoices())[0]]);
+    const result = await post<PolicyDecision>("/api/policy/evaluate", {
+      intent: { ...intent, vendor_name: "Unknown LLC" },
+    });
+
+    expect(result.body).toMatchObject({
+      ok: true,
+      data: {
+        verdict: "DENY",
+        deny_reasons: ["VENDOR_UNKNOWN"],
+        checks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "BENEFICIARY_MATCH",
+            status: "NA",
+          }),
+        ]),
+      },
+    });
+  });
+
+  it("canonicalizes vendor name casing without changing the proposed recipient", async () => {
+    const [plannedIntent] = await plan([(await invoices())[0]]);
+    const intent = { ...plannedIntent, vendor_name: "abc cloud" };
+    const evaluation = await post<PolicyDecision>("/api/policy/evaluate", {
+      intent,
+    });
+
+    expect(evaluation.body).toMatchObject({
+      ok: true,
+      data: {
+        verdict: "ALLOW",
+        deny_reasons: [],
+      },
+    });
+
+    const execution = await post<{
+      receipt: {
+        policy_verdict: string;
+        agent_proposed_recipient: string;
+      };
+    }>("/api/payments/execute", {
+      intent,
+      decision: clientDecision(intent.intent_id),
+    });
+    expect(execution.body).toMatchObject({
+      ok: true,
+      data: {
+        receipt: {
+          policy_verdict: "ALLOW",
+          agent_proposed_recipient: intent.recipient,
+        },
+      },
+    });
   });
 
   it("produces the documented 16 ALLOW / 1 REVIEW / 1 DENY split", async () => {
@@ -563,7 +619,6 @@ describe("PolicyVault mock API contract", () => {
         policyVersion: "V18",
         maxPerTxDisplay: 5_000,
         maxPer24hDisplay: 10_000,
-        approvalThresholdDisplay: 2_000,
         sessionExpiresAt: "2026-09-07T23:59:00Z",
         treasuryBalanceDisplay: 2_000_000,
       },
@@ -750,7 +805,6 @@ describe("PolicyVault mock API contract", () => {
       policyVersion: "V18",
       maxPerTxDisplay: 5_000,
       maxPer24hDisplay: 10_000,
-      approvalThresholdDisplay: 2_000,
       sessionExpiresAt: "2026-09-07T23:59:00Z",
       treasuryBalanceDisplay: 2_000_000,
     };
@@ -783,7 +837,7 @@ describe("PolicyVault mock API contract", () => {
       receipt: { funds_moved_display: 6_000 },
     } as StoredPaymentRecord;
 
-    const rollingDecision = evaluateMockPolicy(
+    const rollingDecision = evaluatePolicy(
       intent,
       [vendor],
       [previousPayment],
@@ -793,7 +847,7 @@ describe("PolicyVault mock API contract", () => {
     expect(rollingDecision.verdict).toBe("DENY");
     expect(rollingDecision.deny_reasons).toContain("DAILY_LIMIT_EXCEEDED");
 
-    const unverifiedDecision = evaluateMockPolicy(
+    const unverifiedDecision = evaluatePolicy(
       { ...intent, amount_display: 1_000, amount_raw: "1000000000" },
       [{ ...vendor, verified: false }],
       [],

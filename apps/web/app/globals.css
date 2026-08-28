@@ -2,10 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #0a0a0b;
+}
 
 body {
+  min-width: 1180px;
+  margin: 0;
   background: #0a0a0b;
   color: #e5e5e7;
   font-family: ui-sans-serif, system-ui, "Segoe UI", "Noto Sans TC", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 3px;
+}
+
+::selection {
+  background: rgba(16, 185, 129, 0.28);
 }

@@ -1,0 +1,43 @@
+# 相依套件
+node_modules/
+.pnpm-store/
+
+# 環境變數 —— 絕對不能 commit
+.env
+.env.*
+!.env.example
+
+# 建置產物
+dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/
+
+# 測試與快取
+coverage/
+.vitest/
+.turbo/
+
+# 編輯器 / 系統
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# 影片與大檔（放 YouTube，不要進 repo）
+*.mp4
+*.mov
+*.zip
+
+# 日誌
+*.log
+npm-debug.log*
+pnpm-debug.log*

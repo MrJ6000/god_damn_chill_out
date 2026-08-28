@@ -1,0 +1,22 @@
+{
+  "name": "policyvault-sentinel",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"pnpm dev:api\" \"pnpm dev:web\"",
+    "dev:api": "pnpm --filter @pv/api dev",
+    "dev:web": "pnpm --filter @pv/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "bench": "tsx benchmark/run.ts",
+    "typecheck": "pnpm -r exec tsc --noEmit"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
+  }
+}

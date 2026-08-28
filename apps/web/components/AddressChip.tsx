@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type MouseEvent } from "react";
+import { AnimatedIcon } from "@/components/AnimatedIcon";
 
 function shortenAddress(address: string): string {
   if (address.length <= 12) return address;
@@ -24,14 +25,15 @@ export function AddressChip({ address, tone = "default" }: { address: string; to
 
   return (
     <button
-      aria-label={`Copy address ${address}`}
-      className={`inline-flex items-center gap-2 rounded-lg border border-line bg-ink px-3 py-1.5 font-mono text-sm ${toneClass}`}
+      aria-label={`複製完整地址 ${address}`}
+      className={`group inline-flex items-center gap-2 rounded-lg border border-line bg-ink px-3 py-1.5 font-mono text-sm ${toneClass}`}
       onClick={copyAddress}
       title={address}
       type="button"
     >
       {shortenAddress(address)}
-      <span className="font-sans text-[10px] uppercase tracking-wider text-muted">{copied ? "Copied" : "Copy"}</span>
+      <AnimatedIcon active={copied} className="h-3.5 w-3.5 text-muted" morphTo="check" name="copy" />
+      <span className="font-sans text-[10px] tracking-wider text-muted">{copied ? "已複製" : "複製"}</span>
     </button>
   );
 }

@@ -20,10 +20,10 @@ import {
   buildMockPlan,
   buildMockReceipt,
   buildMockSuccessfulExecution,
-  evaluateMockPolicy,
   getRuntimeConfig,
   type RuntimeConfig,
 } from "./mock.js";
+import { evaluatePolicy } from "./policy.js";
 import {
   agentPlanBodySchema,
   approvalBodySchema,
@@ -164,7 +164,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       ]);
       sendOk(
         res,
-        evaluateMockPolicy(body.intent, vendors, records, now(), config),
+        evaluatePolicy(body.intent, vendors, records, now(), config),
       );
     }),
   );
@@ -210,7 +210,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
         const records = await store.listPaymentRecords();
 
         // Never trust the client-provided decision. Re-evaluate on the server.
-        const decision = evaluateMockPolicy(
+        const decision = evaluatePolicy(
           body.intent,
           vendors,
           records,
@@ -236,6 +236,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
         const vendor = vendors.find(
           (candidate) =>
+            candidate.verified &&
             candidate.display_name.toLowerCase() ===
             body.intent.vendor_name.toLowerCase(),
         );
@@ -338,7 +339,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
         }
         if (body.approve) {
           const vendors = await store.listVendors();
-          const currentDecision = evaluateMockPolicy(
+          const currentDecision = evaluatePolicy(
             record.intent,
             vendors,
             records,

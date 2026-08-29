@@ -6,9 +6,10 @@ import "forge-std/console.sol";
 import "../src/TreasuryPolicyModule.sol";
 
 contract Deploy is Script {
-    uint256 constant SESSION_EXPIRY = 1788825540; // 2026-09-07T23:59:00Z
-    uint256 constant PER_TX_LIMIT = 5000 * 1e6;    // 5000 USDC
-    uint256 constant DAILY_LIMIT = 10000 * 1e6;    // 10000 USDC
+    uint256 constant SESSION_EXPIRY = 1788825540;   // 2026-09-07T23:59:00Z
+    uint256 constant PER_TX_LIMIT = 5000 * 1e6;      // 5000 USDC
+    uint256 constant DAILY_LIMIT = 10000 * 1e6;      // 10000 USDC
+    uint256 constant APPROVAL_THRESHOLD = 2000 * 1e6; // > 2000 需要 CFO 核准
 
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -24,6 +25,7 @@ contract Deploy is Script {
             usdc,
             PER_TX_LIMIT,
             DAILY_LIMIT,
+            APPROVAL_THRESHOLD,
             SESSION_EXPIRY
         );
 

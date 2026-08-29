@@ -17,14 +17,14 @@ forge script script/Deploy.s.sol \
 
 - [x] 階段 1：收款人白名單 + 單筆限額 + Session 過期
 - [x] 階段 2：24 小時累計限額
-- [ ] 階段 3：重複付款偵測
-- [ ] 階段 4：人工簽核狀態
+- [x] 階段 3：重複付款偵測
+- [x] 階段 4：人工簽核狀態
 
 ## 部署紀錄（部署後填入，並在群組公告給 M2）
 
 | 項目 | 位址 |
 |---|---|
-| TreasuryPolicyModule | 0xB77128aee907EDd21619e7F46D44BF0Bc669cB39 |
+| TreasuryPolicyModule | 0xA89bF778C9998E34f73E1dB4334dE05B8df349E4 |
 | Smart Account | 0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F |
 | USDC (Base Sepolia) | 0x036CbD53842c5426634e7929541eC2318f3dCF7e |
 | CFO Root | 0x514De60834d21eC0E67af32F937FE0A83519a4F5 |

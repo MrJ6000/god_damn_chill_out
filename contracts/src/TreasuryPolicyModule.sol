@@ -7,9 +7,11 @@ interface IERC20 {
 }
 
 /// @title TreasuryPolicyModule
-/// @notice Stage 1+2: recipient whitelist + per-tx limit + 24h cumulative
-///         limit + session expiry. The AI session key can only call
-///         aiTransfer(). It can NEVER change policy — only `root` (the CFO) can.
+/// @notice Stage 1-4: recipient whitelist, per-tx limit, 24h cumulative
+///         limit, session expiry, duplicate-payment protection, and an
+///         on-chain approval gate for large payments. The AI session key
+///         can only call aiTransfer(). It can NEVER change policy or
+///         approve its own payments — only `root` (the CFO) can.
 contract TreasuryPolicyModule {
     address public immutable root;
     address public aiSession;
@@ -18,17 +20,21 @@ contract TreasuryPolicyModule {
     address public allowedToken;
     uint256 public perTxLimit;
     uint256 public dailyLimit;
+    uint256 public approvalThreshold;   // amounts strictly above this need approveInvoice() first
     uint256 public sessionExpiry;
     uint256 public policyVersion;
 
-    // day index (block.timestamp / 1 days) => amount already spent that day
-    mapping(uint256 => uint256) public spentOnDay;
+    mapping(uint256 => uint256) public spentOnDay;    // day index => amount spent
+    mapping(bytes32 => bool) public paidInvoice;       // invoiceHash => already paid
+    mapping(bytes32 => bool) public approvedInvoice;   // invoiceHash => root approved
 
     event RecipientAllowed(address indexed recipient, bool allowed);
     event PerTxLimitUpdated(uint256 newLimit);
     event DailyLimitUpdated(uint256 newLimit);
+    event ApprovalThresholdUpdated(uint256 newThreshold);
     event SessionExpiryUpdated(uint256 newExpiry);
     event AiSessionUpdated(address indexed newAiSession);
+    event InvoiceApproved(bytes32 indexed invoiceHash);
     event Transferred(address indexed token, address indexed to, uint256 amount, bytes32 indexed invoiceHash);
 
     error NotRoot();
@@ -38,6 +44,8 @@ contract TreasuryPolicyModule {
     error PerTxLimitExceeded(uint256 amount, uint256 limit);
     error DailyLimitExceeded(uint256 attempted, uint256 limit);
     error SessionExpired(uint256 nowTs, uint256 expiry);
+    error DuplicatePayment(bytes32 invoiceHash);
+    error ApprovalRequired(bytes32 invoiceHash);
 
     modifier onlyRoot() {
         if (msg.sender != root) revert NotRoot();
@@ -55,6 +63,7 @@ contract TreasuryPolicyModule {
         address _allowedToken,
         uint256 _perTxLimit,
         uint256 _dailyLimit,
+        uint256 _approvalThreshold,
         uint256 _sessionExpiry
     ) {
         root = _root;
@@ -62,6 +71,7 @@ contract TreasuryPolicyModule {
         allowedToken = _allowedToken;
         perTxLimit = _perTxLimit;
         dailyLimit = _dailyLimit;
+        approvalThreshold = _approvalThreshold;
         sessionExpiry = _sessionExpiry;
         policyVersion = 1;
     }
@@ -86,6 +96,12 @@ contract TreasuryPolicyModule {
         emit DailyLimitUpdated(newLimit);
     }
 
+    function setApprovalThreshold(uint256 newThreshold) external onlyRoot {
+        approvalThreshold = newThreshold;
+        policyVersion++;
+        emit ApprovalThresholdUpdated(newThreshold);
+    }
+
     function setSessionExpiry(uint256 newExpiry) external onlyRoot {
         sessionExpiry = newExpiry;
         policyVersion++;
@@ -95,6 +111,14 @@ contract TreasuryPolicyModule {
     function setAiSession(address newAiSession) external onlyRoot {
         aiSession = newAiSession;
         emit AiSessionUpdated(newAiSession);
+    }
+
+    /// @notice Root (CFO) signs off on one specific invoice ahead of time.
+    ///         Required before aiTransfer() will move an amount above
+    ///         approvalThreshold. The AI can never call this itself.
+    function approveInvoice(bytes32 invoiceHash) external onlyRoot {
+        approvedInvoice[invoiceHash] = true;
+        emit InvoiceApproved(invoiceHash);
     }
 
     // ---- The ONLY function the AI session key is allowed to call. ----
@@ -108,11 +132,15 @@ contract TreasuryPolicyModule {
         if (!allowedRecipient[to]) revert RecipientNotAllowed(to);
         if (amount > perTxLimit) revert PerTxLimitExceeded(amount, perTxLimit);
         if (block.timestamp >= sessionExpiry) revert SessionExpired(block.timestamp, sessionExpiry);
+        if (paidInvoice[invoiceHash]) revert DuplicatePayment(invoiceHash);
+        if (amount > approvalThreshold && !approvedInvoice[invoiceHash]) revert ApprovalRequired(invoiceHash);
 
         uint256 today = block.timestamp / 1 days;
         uint256 attempted = spentOnDay[today] + amount;
         if (attempted > dailyLimit) revert DailyLimitExceeded(attempted, dailyLimit);
         spentOnDay[today] = attempted;
+
+        paidInvoice[invoiceHash] = true;
 
         bool ok = IERC20(token).transfer(to, amount);
         require(ok, "ERC20 transfer failed");

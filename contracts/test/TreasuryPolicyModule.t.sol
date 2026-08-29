@@ -16,6 +16,7 @@ contract TreasuryPolicyModuleTest is Test {
 
     uint256 constant PER_TX_LIMIT = 5000 * 1e6;
     uint256 constant DAILY_LIMIT = 10000 * 1e6;
+    uint256 constant APPROVAL_THRESHOLD = 2000 * 1e6;
     uint256 sessionExpiry;
 
     function setUp() public {
@@ -28,6 +29,7 @@ contract TreasuryPolicyModuleTest is Test {
             address(usdc),
             PER_TX_LIMIT,
             DAILY_LIMIT,
+            APPROVAL_THRESHOLD,
             sessionExpiry
         );
 
@@ -102,9 +104,18 @@ contract TreasuryPolicyModuleTest is Test {
     }
 
     function testDailyLimitExceededReverts() public {
+        bytes32 invA = keccak256("INV-A");
+        bytes32 invB = keccak256("INV-B");
+        bytes32 invC = keccak256("INV-C");
+
+        vm.startPrank(root);
+        module.approveInvoice(invA);
+        module.approveInvoice(invB);
+        vm.stopPrank();
+
         vm.startPrank(aiSession);
-        module.aiTransfer(address(usdc), vendor, 5000 * 1e6, keccak256("INV-A"));
-        module.aiTransfer(address(usdc), vendor, 5000 * 1e6, keccak256("INV-B"));
+        module.aiTransfer(address(usdc), vendor, 5000 * 1e6, invA);
+        module.aiTransfer(address(usdc), vendor, 5000 * 1e6, invB);
         // 今天已經用滿 10000 USDC 額度，再轉 1 USDC 就超過
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -113,25 +124,74 @@ contract TreasuryPolicyModuleTest is Test {
                 DAILY_LIMIT
             )
         );
-        module.aiTransfer(address(usdc), vendor, 1 * 1e6, keccak256("INV-C"));
+        module.aiTransfer(address(usdc), vendor, 1 * 1e6, invC);
         vm.stopPrank();
     }
 
     function testDailyLimitResetsNextDay() public {
+        bytes32 invD1 = keccak256("INV-D1");
+        bytes32 invD2 = keccak256("INV-D2");
+        bytes32 invE1 = keccak256("INV-E1");
+        bytes32 invE2 = keccak256("INV-E2");
+
+        vm.startPrank(root);
+        module.approveInvoice(invD1);
+        module.approveInvoice(invD2);
+        module.approveInvoice(invE1);
+        module.approveInvoice(invE2);
+        vm.stopPrank();
+
         vm.startPrank(aiSession);
-        module.aiTransfer(address(usdc), vendor, 5000 * 1e6, keccak256("INV-D1"));
-        module.aiTransfer(address(usdc), vendor, 5000 * 1e6, keccak256("INV-D2"));
+        module.aiTransfer(address(usdc), vendor, 5000 * 1e6, invD1);
+        module.aiTransfer(address(usdc), vendor, 5000 * 1e6, invD2);
         vm.stopPrank();
 
         // 跳到隔天，每日額度應該要重新歸零
         vm.warp(block.timestamp + 1 days);
 
         vm.startPrank(aiSession);
-        bool ok1 = module.aiTransfer(address(usdc), vendor, 5000 * 1e6, keccak256("INV-E1"));
-        bool ok2 = module.aiTransfer(address(usdc), vendor, 5000 * 1e6, keccak256("INV-E2"));
+        bool ok1 = module.aiTransfer(address(usdc), vendor, 5000 * 1e6, invE1);
+        bool ok2 = module.aiTransfer(address(usdc), vendor, 5000 * 1e6, invE2);
         vm.stopPrank();
 
         assertTrue(ok1);
         assertTrue(ok2);
+    }
+
+    function testDuplicateInvoiceReverts() public {
+        bytes32 inv = keccak256("INV-DUP");
+        vm.startPrank(aiSession);
+        module.aiTransfer(address(usdc), vendor, 500 * 1e6, inv);
+        vm.expectRevert(
+            abi.encodeWithSelector(TreasuryPolicyModule.DuplicatePayment.selector, inv)
+        );
+        module.aiTransfer(address(usdc), vendor, 500 * 1e6, inv);
+        vm.stopPrank();
+    }
+
+    function testApprovalRequiredForLargeAmount() public {
+        // 3000 USDC 超過 $2000 門檻，但還沒被 root 核准
+        bytes32 inv = keccak256("INV-BIG");
+        vm.prank(aiSession);
+        vm.expectRevert(
+            abi.encodeWithSelector(TreasuryPolicyModule.ApprovalRequired.selector, inv)
+        );
+        module.aiTransfer(address(usdc), vendor, 3000 * 1e6, inv);
+    }
+
+    function testApprovedLargeAmountSucceeds() public {
+        bytes32 inv = keccak256("INV-BIG2");
+        vm.prank(root);
+        module.approveInvoice(inv);
+
+        vm.prank(aiSession);
+        bool ok = module.aiTransfer(address(usdc), vendor, 3000 * 1e6, inv);
+        assertTrue(ok);
+    }
+
+    function testAiCannotApproveOwnInvoice() public {
+        vm.prank(aiSession);
+        vm.expectRevert(TreasuryPolicyModule.NotRoot.selector);
+        module.approveInvoice(keccak256("INV-BIG3"));
     }
 }

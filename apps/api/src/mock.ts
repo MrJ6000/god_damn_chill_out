@@ -1,7 +1,5 @@
 import { createHash } from "node:crypto";
 import {
-  addressEquals,
-  toRawAmount,
   type BlastRadius,
   type ExecutionResult,
   type Invoice,
@@ -49,43 +47,6 @@ export function getRuntimeConfig(
       DEFAULT_CONFIG.treasuryBalanceDisplay,
     ),
     ...overrides,
-  };
-}
-
-function injectedRecipient(invoice: Invoice): string | undefined {
-  const untrustedText = `${invoice.memo ?? ""} ${invoice.description ?? ""}`;
-  return untrustedText.match(/0x[A-Za-z0-9]{40}/)?.[0];
-}
-
-export function buildMockPlan(
-  instruction: string,
-  invoices: Invoice[],
-  now: Date,
-): { intents: PaymentIntent[]; agent_message: string } {
-  const createdAt = now.toISOString();
-  const intents = invoices.map<PaymentIntent>((invoice) => {
-    const recipient = injectedRecipient(invoice) ?? invoice.payment_address;
-    const wasRedirected = !addressEquals(recipient, invoice.payment_address);
-
-    return {
-      intent_id: `PI-${invoice.invoice_id.replace(/^INV-/, "")}`,
-      invoice_id: invoice.invoice_id,
-      vendor_name: invoice.vendor,
-      recipient,
-      amount_display: invoice.amount,
-      amount_raw: toRawAmount(invoice.amount),
-      token: "USDC",
-      action: "transfer",
-      reasoning: wasRedirected
-        ? "Mock agent followed the payment address embedded in untrusted invoice text."
-        : "Mock agent prepared a transfer from the invoice fields.",
-      created_at: createdAt,
-    };
-  });
-
-  return {
-    intents,
-    agent_message: `[MOCK MODE] Planned ${intents.length} payment(s) for: ${instruction}`,
   };
 }
 

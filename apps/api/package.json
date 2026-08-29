@@ -9,6 +9,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@pv/agent": "workspace:*",
     "@pv/shared": "workspace:*",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

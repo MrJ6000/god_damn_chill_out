@@ -93,6 +93,11 @@ export const agentPlanBodySchema = z.object({
   invoices: z.array(invoiceSchema).min(1),
 });
 
+export const agentPlanResultSchema = z.object({
+  intents: z.array(paymentIntentSchema),
+  agent_message: z.string(),
+});
+
 export const policyEvaluateBodySchema = z.object({
   intent: paymentIntentSchema,
 });

@@ -6,6 +6,7 @@ import express, {
   type RequestHandler,
   type Response,
 } from "express";
+import { planPayments } from "@pv/agent";
 import type {
   ApiErr,
   ApiOk,
@@ -17,7 +18,6 @@ import type { output, ZodTypeAny } from "zod";
 import {
   buildMockBlastRadius,
   buildMockExecution,
-  buildMockPlan,
   buildMockReceipt,
   buildMockSuccessfulExecution,
   getRuntimeConfig,
@@ -26,6 +26,7 @@ import {
 import { evaluatePolicy } from "./policy.js";
 import {
   agentPlanBodySchema,
+  agentPlanResultSchema,
   approvalBodySchema,
   approvalParamsSchema,
   directBypassBodySchema,
@@ -143,12 +144,43 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
           res,
           503,
           "AGENT_INTEGRATION_NOT_READY",
-          "@pv/agent does not export planPayments yet. Set MOCK_AGENT=1 for the mock contract.",
+          "@pv/agent currently provides only MOCK MODE. Set MOCK_AGENT=1 for the mock contract.",
         );
         return;
       }
 
-      sendOk(res, buildMockPlan(body.instruction, body.invoices, now()));
+      const vendors = await store.listVendors();
+      try {
+        const plan = await planPayments({
+          instruction: body.instruction,
+          invoices: body.invoices,
+          vendorContext: vendors.map(({ display_name, status }) => ({
+            display_name,
+            status,
+          })),
+        });
+        const parsedPlan = agentPlanResultSchema.safeParse(plan);
+        if (!parsedPlan.success) {
+          console.error("[api] invalid agent plan", parsedPlan.error);
+          sendError(
+            res,
+            502,
+            "AGENT_INVALID_RESPONSE",
+            "@pv/agent returned an invalid payment plan.",
+          );
+          return;
+        }
+
+        sendOk(res, parsedPlan.data);
+      } catch (error) {
+        console.error("[api] agent plan failed", error);
+        sendError(
+          res,
+          502,
+          "AGENT_ERROR",
+          "@pv/agent could not create a payment plan.",
+        );
+      }
     }),
   );
 

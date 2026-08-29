@@ -15,7 +15,7 @@ forge script script/Deploy.s.sol \
 
 ## 分階段實作（每階段測試通過才往下）
 
-- [ ] 階段 1：收款人白名單 + 單筆限額 + Session 過期
+- [x] 階段 1：收款人白名單 + 單筆限額 + Session 過期
 - [ ] 階段 2：24 小時累計限額
 - [ ] 階段 3：重複付款偵測
 - [ ] 階段 4：人工簽核狀態
@@ -24,11 +24,11 @@ forge script script/Deploy.s.sol \
 
 | 項目 | 位址 |
 |---|---|
-| TreasuryPolicyModule | |
+| TreasuryPolicyModule | 0xcadA765CBBc32740a48519236360cb11fBDF918E |
 | Smart Account | 0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F |
 | USDC (Base Sepolia) | 0x036CbD53842c5426634e7929541eC2318f3dCF7e |
-| CFO Root | |
-| AI Session | |
+| CFO Root | 0x514De60834d21eC0E67af32F937FE0A83519a4F5 |
+| AI Session | 0xf32b9eBC91C74b1a527B85d194Ee08ad0D4A1D29 |
 | Hacker（Demo 用） | |
 
 ## 成功交易備份（保命用，9/2 前備妥 3 筆）

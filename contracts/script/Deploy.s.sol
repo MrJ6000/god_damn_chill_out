@@ -14,7 +14,8 @@ contract Deploy is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address root = vm.addr(vm.envUint("CFO_ROOT_PRIVATE_KEY"));
-        address aiSession = vm.addr(vm.envUint("AI_SESSION_PRIVATE_KEY"));
+        // 這次 aiSession 是「Smart Account」的地址，不是 AI 鑰匙本身的地址
+        address aiSession = vm.envAddress("SMART_ACCOUNT_ADDRESS");
         address usdc = vm.envAddress("USDC_ADDRESS");
 
         vm.startBroadcast(deployerKey);
@@ -31,7 +32,7 @@ contract Deploy is Script {
 
         console.log("TreasuryPolicyModule deployed at:", address(module));
         console.log("root (CFO):", root);
-        console.log("aiSession:", aiSession);
+        console.log("aiSession (Smart Account):", aiSession);
 
         vm.stopBroadcast();
     }

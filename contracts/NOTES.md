@@ -24,17 +24,18 @@ forge script script/Deploy.s.sol \
 
 | 項目 | 位址 |
 |---|---|
-| TreasuryPolicyModule | 0xA89bF778C9998E34f73E1dB4334dE05B8df349E4 |
+| TreasuryPolicyModule | 0xff3Aaf05e83c6d5877b4703a201Ec1442cEE9AaA |
 | Smart Account | 0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F |
 | USDC (Base Sepolia) | 0x036CbD53842c5426634e7929541eC2318f3dCF7e |
 | CFO Root | 0x514De60834d21eC0E67af32F937FE0A83519a4F5 |
-| AI Session | 0xf32b9eBC91C74b1a527B85d194Ee08ad0D4A1D29 |
+| AI Session (Scoped, via Smart Account) | 0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F |
 | Hacker（Demo 用） | |
 
 ## 成功交易備份（保命用，9/2 前備妥 3 筆）
 
 | # | 用途 | Tx Hash |
 |---|---|---|
-| 1 | 正常付款成功 | 0xa73f63f0cfe8ad614e8dd02275bd9fe59bbee50dc0eb9432a393623f378e797c |
-| 2 | 白名單外被拒 | |
-| 3 | 超額被拒 | |
+| 1 | 正常付款成功 | 0xe1144e42afb1d8f41780a0ed4010ad2aa94e7083a183354ead4c6dd88955b112 |
+| 2 | 白名單外被拒 | 0xb2e3562654e8fd775b2aa3da1800615ebae648271c78c4179d4e20eb90905f6c |
+| 3 | 超額被拒 | 0x438c1cf8f9482e5c43bbb005cbc2a924d314b9a44f2fa10d63ff4dc6711ec5c0 |
+| 4 | 駭客直接繞過 Session Key（幕三 Demo，NotAiSession 被拒） | 0xb0f35ee2d6688344269399ac0603a1e59d1ddf6ab97c0c93661281eecd168345 |

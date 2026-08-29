@@ -23,6 +23,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@pv/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@pv/shared':
         specifier: workspace:*
         version: link:../../packages/shared

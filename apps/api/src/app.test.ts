@@ -193,6 +193,47 @@ describe("PolicyVault mock API contract", () => {
     });
   });
 
+  it("uses @pv/agent mock planning with unique PI ids and mode markers", async () => {
+    const invoiceList = await invoices();
+    const first = await post<{
+      intents: PaymentIntent[];
+      agent_message: string;
+    }>("/api/agent/plan", {
+      instruction: "Pay all approved invoices",
+      invoices: invoiceList,
+    });
+    expect(first.response.status).toBe(200);
+    if (!first.body.ok) throw new Error(first.body.error.message);
+
+    expect(first.body.data.intents).toHaveLength(18);
+    expect(first.body.data.agent_message).toContain("[MOCK MODE]");
+    expect(first.body.data.intents.map((intent) => intent.invoice_id)).toEqual(
+      invoiceList.map((invoice) => invoice.invoice_id),
+    );
+    expect(
+      first.body.data.intents.every(
+        (intent) =>
+          intent.intent_id.startsWith("PI-") &&
+          intent.reasoning.includes("[MOCK MODE]"),
+      ),
+    ).toBe(true);
+    expect(
+      new Set(first.body.data.intents.map((intent) => intent.intent_id)).size,
+    ).toBe(18);
+
+    const second = await post<{
+      intents: PaymentIntent[];
+      agent_message: string;
+    }>("/api/agent/plan", {
+      instruction: "Plan the first invoice again",
+      invoices: [invoiceList[0]],
+    });
+    if (!second.body.ok) throw new Error(second.body.error.message);
+    expect(second.body.data.intents[0].intent_id).not.toBe(
+      first.body.data.intents[0].intent_id,
+    );
+  });
+
   it("plans the documented compromised intent and policy denies it", async () => {
     const maliciousInvoice = (await invoices()).find(
       (invoice) => invoice.invoice_id === "INV-8821",
@@ -361,6 +402,8 @@ describe("PolicyVault mock API contract", () => {
         payment_id: string;
         input_hash: string;
         policy_verdict: string;
+        verified_recipient: string;
+        agent_proposed_recipient: string;
         funds_moved_display: number;
       };
     }>("/api/payments/execute", {
@@ -371,7 +414,12 @@ describe("PolicyVault mock API contract", () => {
       ok: true,
       data: {
         execution: { status: "SKIPPED", error_code: "POLICY_DENIED" },
-        receipt: { policy_verdict: "DENY", funds_moved_display: 0 },
+        receipt: {
+          policy_verdict: "DENY",
+          verified_recipient: maliciousInvoice.payment_address,
+          agent_proposed_recipient: maliciousIntent.recipient,
+          funds_moved_display: 0,
+        },
       },
     });
     if (!denied.body.ok) throw new Error(denied.body.error.message);

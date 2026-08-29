@@ -6,10 +6,9 @@ import "forge-std/console.sol";
 import "../src/TreasuryPolicyModule.sol";
 
 contract Deploy is Script {
-    // 2026-09-07T23:59:00Z，對應 07_Shared_Spec.md 的 SESSION_EXPIRES_AT
-    uint256 constant SESSION_EXPIRY = 1788825540;
-    // 單筆上限 5000 USDC（07b_Demo_Numbers.md），USDC 是 6 位小數
-    uint256 constant PER_TX_LIMIT = 5000 * 1e6;
+    uint256 constant SESSION_EXPIRY = 1788825540; // 2026-09-07T23:59:00Z
+    uint256 constant PER_TX_LIMIT = 5000 * 1e6;    // 5000 USDC
+    uint256 constant DAILY_LIMIT = 10000 * 1e6;    // 10000 USDC
 
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -24,6 +23,7 @@ contract Deploy is Script {
             aiSession,
             usdc,
             PER_TX_LIMIT,
+            DAILY_LIMIT,
             SESSION_EXPIRY
         );
 

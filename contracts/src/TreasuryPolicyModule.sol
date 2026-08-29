@@ -7,21 +7,26 @@ interface IERC20 {
 }
 
 /// @title TreasuryPolicyModule
-/// @notice Stage 1: recipient whitelist + per-tx limit + session expiry.
-///         The AI session key can only call aiTransfer(). It can NEVER
-///         change policy — only `root` (the CFO) can.
+/// @notice Stage 1+2: recipient whitelist + per-tx limit + 24h cumulative
+///         limit + session expiry. The AI session key can only call
+///         aiTransfer(). It can NEVER change policy — only `root` (the CFO) can.
 contract TreasuryPolicyModule {
-    address public immutable root;   // CFO — highest authority
-    address public aiSession;        // AI's scoped session key address
+    address public immutable root;
+    address public aiSession;
 
     mapping(address => bool) public allowedRecipient;
-    address public allowedToken;     // USDC address on Base Sepolia
-    uint256 public perTxLimit;       // smallest unit (USDC has 6 decimals)
-    uint256 public sessionExpiry;    // unix timestamp
+    address public allowedToken;
+    uint256 public perTxLimit;
+    uint256 public dailyLimit;
+    uint256 public sessionExpiry;
     uint256 public policyVersion;
+
+    // day index (block.timestamp / 1 days) => amount already spent that day
+    mapping(uint256 => uint256) public spentOnDay;
 
     event RecipientAllowed(address indexed recipient, bool allowed);
     event PerTxLimitUpdated(uint256 newLimit);
+    event DailyLimitUpdated(uint256 newLimit);
     event SessionExpiryUpdated(uint256 newExpiry);
     event AiSessionUpdated(address indexed newAiSession);
     event Transferred(address indexed token, address indexed to, uint256 amount, bytes32 indexed invoiceHash);
@@ -31,6 +36,7 @@ contract TreasuryPolicyModule {
     error RecipientNotAllowed(address recipient);
     error TokenNotAllowed(address token);
     error PerTxLimitExceeded(uint256 amount, uint256 limit);
+    error DailyLimitExceeded(uint256 attempted, uint256 limit);
     error SessionExpired(uint256 nowTs, uint256 expiry);
 
     modifier onlyRoot() {
@@ -48,12 +54,14 @@ contract TreasuryPolicyModule {
         address _aiSession,
         address _allowedToken,
         uint256 _perTxLimit,
+        uint256 _dailyLimit,
         uint256 _sessionExpiry
     ) {
         root = _root;
         aiSession = _aiSession;
         allowedToken = _allowedToken;
         perTxLimit = _perTxLimit;
+        dailyLimit = _dailyLimit;
         sessionExpiry = _sessionExpiry;
         policyVersion = 1;
     }
@@ -70,6 +78,12 @@ contract TreasuryPolicyModule {
         perTxLimit = newLimit;
         policyVersion++;
         emit PerTxLimitUpdated(newLimit);
+    }
+
+    function setDailyLimit(uint256 newLimit) external onlyRoot {
+        dailyLimit = newLimit;
+        policyVersion++;
+        emit DailyLimitUpdated(newLimit);
     }
 
     function setSessionExpiry(uint256 newExpiry) external onlyRoot {
@@ -95,6 +109,11 @@ contract TreasuryPolicyModule {
         if (amount > perTxLimit) revert PerTxLimitExceeded(amount, perTxLimit);
         if (block.timestamp >= sessionExpiry) revert SessionExpired(block.timestamp, sessionExpiry);
 
+        uint256 today = block.timestamp / 1 days;
+        uint256 attempted = spentOnDay[today] + amount;
+        if (attempted > dailyLimit) revert DailyLimitExceeded(attempted, dailyLimit);
+        spentOnDay[today] = attempted;
+
         bool ok = IERC20(token).transfer(to, amount);
         require(ok, "ERC20 transfer failed");
 
@@ -110,10 +129,15 @@ contract TreasuryPolicyModule {
         returns (
             address token,
             uint256 perTx,
+            uint256 daily,
+            uint256 remainingToday,
             uint256 expiry,
             uint256 policyVer
         )
     {
-        return (allowedToken, perTxLimit, sessionExpiry, policyVersion);
+        uint256 today = block.timestamp / 1 days;
+        uint256 spentToday = spentOnDay[today];
+        uint256 remaining = dailyLimit > spentToday ? dailyLimit - spentToday : 0;
+        return (allowedToken, perTxLimit, dailyLimit, remaining, sessionExpiry, policyVersion);
     }
 }

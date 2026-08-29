@@ -140,4 +140,114 @@ describe("planPayments", () => {
       "[MOCK MODE] Prepared 0 payment intents from 0 invoices.",
     );
   });
+
+  it("adds program-owned fields to a validated OpenAI structured result", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-30T02:00:00.000Z"));
+    const requestStructuredPlan = vi.fn().mockResolvedValue({
+      intents: [
+        {
+          invoice_id: "INV-8801",
+          vendor_name: "ABC Cloud",
+          recipient: "0xAAA0000000000000000000000000000000000001",
+          amount_display: 1250,
+          token: "USDC",
+          action: "transfer",
+          reasoning: "The invoice should be paid as instructed.",
+        },
+      ],
+      agent_message: "Prepared one payment intent.",
+    });
+
+    const result = await planPayments(
+      {
+        instruction: "Process today's approved payments.",
+        invoices: [invoice()],
+        vendorContext: [{ display_name: "ABC Cloud", status: "KNOWN" }],
+      },
+      { mockMode: false, requestStructuredPlan },
+    );
+
+    expect(requestStructuredPlan).toHaveBeenCalledOnce();
+    expect(result.agent_message).toBe("Prepared one payment intent.");
+    expect(result.intents[0]).toMatchObject({
+      intent_id: expect.stringMatching(/^PI-/),
+      amount_raw: "1250000000",
+      created_at: "2026-08-30T02:00:00.000Z",
+    });
+  });
+
+  it("retries once when the structured result fails Zod validation", async () => {
+    const requestStructuredPlan = vi
+      .fn()
+      .mockResolvedValueOnce({ intents: [], agent_message: 123 })
+      .mockResolvedValueOnce({
+        intents: [],
+        agent_message: "No approved invoices were selected.",
+      });
+
+    const result = await planPayments(
+      {
+        instruction: "Process approved payments.",
+        invoices: [],
+        vendorContext: [],
+      },
+      { mockMode: false, requestStructuredPlan },
+    );
+
+    expect(requestStructuredPlan).toHaveBeenCalledTimes(2);
+    expect(result.agent_message).toBe("No approved invoices were selected.");
+  });
+
+  it("removes verified_wallet before passing vendor context to OpenAI", async () => {
+    const requestStructuredPlan = vi.fn().mockResolvedValue({
+      intents: [],
+      agent_message: "No payments selected.",
+    });
+
+    await planPayments(
+      {
+        instruction: "Process approved payments.",
+        invoices: [],
+        vendorContext: [
+          {
+            display_name: "ABC Cloud",
+            status: "KNOWN" as const,
+            verified_wallet: "0xSECRET0000000000000000000000000000000000",
+          },
+        ] as Array<{
+          display_name: string;
+          status: "KNOWN";
+          verified_wallet: string;
+        }>,
+      },
+      { mockMode: false, requestStructuredPlan },
+    );
+
+    expect(requestStructuredPlan).toHaveBeenCalledWith({
+      instruction: "Process approved payments.",
+      invoices: [],
+      vendorContext: [{ display_name: "ABC Cloud", status: "KNOWN" }],
+    });
+  });
+
+  it("throws a clear error after two invalid structured results", async () => {
+    const requestStructuredPlan = vi
+      .fn()
+      .mockResolvedValue({ intents: "invalid", agent_message: 123 });
+
+    await expect(
+      planPayments(
+        {
+          instruction: "Process approved payments.",
+          invoices: [],
+          vendorContext: [],
+        },
+        { mockMode: false, requestStructuredPlan },
+      ),
+    ).rejects.toThrow(
+      "OpenAI structured payment plan failed after 2 attempts",
+    );
+    expect(requestStructuredPlan).toHaveBeenCalledTimes(2);
+  });
 });

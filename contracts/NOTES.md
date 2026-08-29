@@ -25,7 +25,7 @@ forge script script/Deploy.s.sol \
 | 項目 | 位址 |
 |---|---|
 | TreasuryPolicyModule | |
-| Smart Account | |
+| Smart Account | 0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F |
 | USDC (Base Sepolia) | 0x036CbD53842c5426634e7929541eC2318f3dCF7e |
 | CFO Root | |
 | AI Session | |
@@ -35,6 +35,6 @@ forge script script/Deploy.s.sol \
 
 | # | 用途 | Tx Hash |
 |---|---|---|
-| 1 | 正常付款成功 | |
+| 1 | 正常付款成功 | 0xa73f63f0cfe8ad614e8dd02275bd9fe59bbee50dc0eb9432a393623f378e797c |
 | 2 | 白名單外被拒 | |
 | 3 | 超額被拒 | |

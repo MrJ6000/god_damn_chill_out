@@ -7,7 +7,10 @@
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
-  "dependencies": { "@pv/shared": "workspace:*" }
+  "dependencies": {
+    "@pv/shared": "workspace:*",
+    "zod": "^3.23.8"
+  }
 }

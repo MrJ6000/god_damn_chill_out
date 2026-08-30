@@ -7,7 +7,7 @@ interface IERC20 {
 }
 
 /// @title TreasuryPolicyModule
-/// @notice Stage 1-4: recipient whitelist, per-tx limit, 24h cumulative
+/// @notice Stage 1-4: recipient whitelist, per-tx limit, rolling 24h cumulative
 ///         limit, session expiry, duplicate-payment protection, and an
 ///         on-chain approval gate for large payments. The AI session key
 ///         can only call aiTransfer(). It can NEVER change policy or
@@ -24,9 +24,22 @@ contract TreasuryPolicyModule {
     uint256 public sessionExpiry;
     uint256 public policyVersion;
 
-    mapping(uint256 => uint256) public spentOnDay;    // day index => amount spent
+    /// @dev Rolling-24h daily limit. Every successful transfer is appended
+    ///      here; `_spentInLast24h` sums only records younger than 24h, so
+    ///      spend does NOT reset at a fixed UTC midnight (that let an
+    ///      attacker double-spend across the calendar-day boundary).
+    struct TransferRecord {
+        uint256 timestamp;
+        uint256 amount;
+    }
+    TransferRecord[] public transferHistory;
+
     mapping(bytes32 => bool) public paidInvoice;       // invoiceHash => already paid
-    mapping(bytes32 => bool) public approvedInvoice;   // invoiceHash => root approved
+    /// @dev key = keccak256(abi.encode(token, recipient, amount, invoiceHash)).
+    ///      Root approves the FULL payment content, not just the invoice id,
+    ///      so the AI can't reuse an approved invoiceHash with a different
+    ///      recipient or amount.
+    mapping(bytes32 => bool) public approvedInvoice;
 
     event RecipientAllowed(address indexed recipient, bool allowed);
     event PerTxLimitUpdated(uint256 newLimit);
@@ -34,7 +47,7 @@ contract TreasuryPolicyModule {
     event ApprovalThresholdUpdated(uint256 newThreshold);
     event SessionExpiryUpdated(uint256 newExpiry);
     event AiSessionUpdated(address indexed newAiSession);
-    event InvoiceApproved(bytes32 indexed invoiceHash);
+    event InvoiceApproved(bytes32 indexed approvalHash, bytes32 indexed invoiceHash);
     event Transferred(address indexed token, address indexed to, uint256 amount, bytes32 indexed invoiceHash);
 
     error NotRoot();
@@ -51,7 +64,6 @@ contract TreasuryPolicyModule {
         if (msg.sender != root) revert NotRoot();
         _;
     }
-
     modifier onlyAiSession() {
         if (msg.sender != aiSession) revert NotAiSession();
         _;
@@ -113,16 +125,37 @@ contract TreasuryPolicyModule {
         emit AiSessionUpdated(newAiSession);
     }
 
-    /// @notice Root (CFO) signs off on one specific invoice ahead of time.
-    ///         Required before aiTransfer() will move an amount above
-    ///         approvalThreshold. The AI can never call this itself.
-    function approveInvoice(bytes32 invoiceHash) external onlyRoot {
-        approvedInvoice[invoiceHash] = true;
-        emit InvoiceApproved(invoiceHash);
+    /// @notice Root (CFO) signs off on one specific, fully-specified payment
+    ///         ahead of time: which token, which recipient, exactly how much,
+    ///         under which invoice id. Required before aiTransfer() will move
+    ///         an amount above approvalThreshold. The AI can never call this
+    ///         itself, and cannot reuse the approval for a different
+    ///         recipient or amount under the same invoiceHash.
+    function approveInvoice(address token, address recipient, uint256 amount, bytes32 invoiceHash)
+        external
+        onlyRoot
+    {
+        bytes32 approvalHash = keccak256(abi.encode(token, recipient, amount, invoiceHash));
+        approvedInvoice[approvalHash] = true;
+        emit InvoiceApproved(approvalHash, invoiceHash);
+    }
+
+    /// @dev Sums transferHistory entries newer than (now - 24h). Entries are
+    ///      appended in increasing timestamp order, so we can walk backwards
+    ///      from the end and stop at the first entry that's aged out.
+    function _spentInLast24h() internal view returns (uint256) {
+        uint256 windowStart = block.timestamp > 1 days ? block.timestamp - 1 days : 0;
+        uint256 sum = 0;
+        uint256 len = transferHistory.length;
+        for (uint256 i = len; i > 0; i--) {
+            TransferRecord storage rec = transferHistory[i - 1];
+            if (rec.timestamp < windowStart) break;
+            sum += rec.amount;
+        }
+        return sum;
     }
 
     // ---- The ONLY function the AI session key is allowed to call. ----
-
     function aiTransfer(address token, address to, uint256 amount, bytes32 invoiceHash)
         external
         onlyAiSession
@@ -133,24 +166,27 @@ contract TreasuryPolicyModule {
         if (amount > perTxLimit) revert PerTxLimitExceeded(amount, perTxLimit);
         if (block.timestamp >= sessionExpiry) revert SessionExpired(block.timestamp, sessionExpiry);
         if (paidInvoice[invoiceHash]) revert DuplicatePayment(invoiceHash);
-        if (amount > approvalThreshold && !approvedInvoice[invoiceHash]) revert ApprovalRequired(invoiceHash);
 
-        uint256 today = block.timestamp / 1 days;
-        uint256 attempted = spentOnDay[today] + amount;
+        if (amount > approvalThreshold) {
+            bytes32 approvalHash = keccak256(abi.encode(token, to, amount, invoiceHash));
+            if (!approvedInvoice[approvalHash]) revert ApprovalRequired(invoiceHash);
+            approvedInvoice[approvalHash] = false; // one-time use, consumed on success
+        }
+
+        uint256 spentRecently = _spentInLast24h();
+        uint256 attempted = spentRecently + amount;
         if (attempted > dailyLimit) revert DailyLimitExceeded(attempted, dailyLimit);
-        spentOnDay[today] = attempted;
 
+        transferHistory.push(TransferRecord({timestamp: block.timestamp, amount: amount}));
         paidInvoice[invoiceHash] = true;
 
         bool ok = IERC20(token).transfer(to, amount);
         require(ok, "ERC20 transfer failed");
-
         emit Transferred(token, to, amount, invoiceHash);
         return true;
     }
 
     // ---- Read-only, for M2's Blast Radius calculation. ----
-
     function readPermission()
         external
         view
@@ -163,9 +199,8 @@ contract TreasuryPolicyModule {
             uint256 policyVer
         )
     {
-        uint256 today = block.timestamp / 1 days;
-        uint256 spentToday = spentOnDay[today];
-        uint256 remaining = dailyLimit > spentToday ? dailyLimit - spentToday : 0;
+        uint256 spentRecently = _spentInLast24h();
+        uint256 remaining = dailyLimit > spentRecently ? dailyLimit - spentRecently : 0;
         return (allowedToken, perTxLimit, dailyLimit, remaining, sessionExpiry, policyVersion);
     }
 }

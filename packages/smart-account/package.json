@@ -12,7 +12,9 @@
     "session-address": "tsx src/session-account-address.ts",
     "session-transfer": "tsx src/session-transfer-test.ts",
     "reject-whitelist": "tsx src/session-reject-whitelist.ts",
-    "smoke-test": "tsx src/index.smoke-test.ts"
+    "smoke-test": "tsx src/index.smoke-test.ts",
+    "generate-approval": "tsx src/generate-session-approval.ts",
+    "cfo-approve": "tsx src/cfo-approve-invoice.ts"
   },
   "dependencies": {
     "@pv/shared": "workspace:*",

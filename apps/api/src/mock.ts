@@ -99,16 +99,26 @@ export function buildMockSuccessfulExecution(
   };
 }
 
-export function buildMockReceipt(opts: {
+export function buildPolicyReceipt(opts: {
   invoice: Invoice;
   intent: PaymentIntent;
   decision: PolicyDecision;
   execution: ExecutionResult;
   vendor: Vendor | undefined;
   paymentNumber: number;
+  sessionPermissionId: string;
   now: Date;
 }): PolicyReceipt {
-  const { invoice, intent, decision, execution, vendor, paymentNumber, now } = opts;
+  const {
+    invoice,
+    intent,
+    decision,
+    execution,
+    vendor,
+    paymentNumber,
+    sessionPermissionId,
+    now,
+  } = opts;
   const inputHash = createHash("sha256")
     .update(JSON.stringify(invoice))
     .digest("hex")
@@ -123,7 +133,7 @@ export function buildMockReceipt(opts: {
     agent_proposed_recipient: intent.recipient,
     amount_display: intent.amount_display,
     policy_version: decision.policy_version,
-    session_permission_id: "SP-MOCK",
+    session_permission_id: sessionPermissionId,
     policy_verdict: decision.verdict,
     deny_reasons: decision.deny_reasons,
     human_approval:

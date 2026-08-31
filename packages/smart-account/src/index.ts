@@ -122,6 +122,28 @@ export type AmountValidation =
 
 const UINT256_MAX = (1n << 256n) - 1n;
 
+/**
+ * 這個 runtime 是否已具備動用資金所需的設定（目前即 SESSION_KEY_APPROVAL）。
+ * 非機密，供 API 在呼叫前 fail-closed 判斷「鏈上整合尚未就緒」。
+ */
+export function chainRuntimeReady(): boolean {
+  return Boolean(SESSION_KEY_APPROVAL);
+}
+
+/**
+ * 設定不完整時一律拋錯，而不是回傳一個看起來像付款結果的 REJECTED。
+ * 「環境沒設定好」與「這筆付款被鏈上拒絕」是兩件完全不同的事，
+ * 混為一談會讓呼叫端把未嘗試的付款記成已被拒絕。
+ */
+function assertChainRuntimeReady(): void {
+  if (!chainRuntimeReady()) {
+    throw new Error(
+      "[smart-account] CHAIN_RUNTIME_NOT_CONFIGURED：環境中缺少 SESSION_KEY_APPROVAL，" +
+        "無法動用資金。請依 packages/smart-account/AI_RUNTIME_ENV.md 設定 .env.ai-runtime。"
+    );
+  }
+}
+
 /** receipt 判讀所需的最小結構，讓單元測試可以餵假物件進來。 */
 export type UserOpReceiptLike = {
   success: boolean;
@@ -363,6 +385,10 @@ export async function executeTransfer(intent: PaymentIntent): Promise<ExecutionR
     };
   }
 
+  // 輸入驗證通過後、真正接觸鏈之前才檢查設定。
+  // 設定問題一律向上拋，不可偽裝成付款結果（置於 try 之外，確保不被吞掉）。
+  assertChainRuntimeReady();
+
   try {
     const { account, kernelClient } = await getKernelClient();
     const invoiceHash = keccak256(toBytes(intent.invoice_id));
@@ -458,6 +484,8 @@ export async function executeRawTransferWithSessionKey(
     };
   }
   const amountBig = amountCheck.value;
+
+  assertChainRuntimeReady();
 
   const aiAccount = privateKeyToAccount(AI_SESSION_PRIVATE_KEY);
   const walletClient = createWalletClient({

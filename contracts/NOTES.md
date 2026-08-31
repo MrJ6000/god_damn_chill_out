@@ -158,3 +158,25 @@ FAIL（`next call did not revert as expected`），已實際確認，不是空�
 
 Foundry 測試 21 項全過。
 
+### 3. 設定不完整不得偽裝成付款結果（第三輪追加發現）
+
+修完 CI 問題後實測發現更深的問題：沒有 approval 時，`buildKernelClient()` 的
+fail-closed 錯誤會被 `executeTransfer` 自己的 catch 接走、包裝成格式完整的
+`REJECTED` 回傳，`apps/api` 因此回 **200**——等於把「環境沒設定好」記成
+「這筆付款被鏈上拒絕」。這與本專案的誠實回報原則直接抵觸。
+
+已修正：
+- 新增 `chainRuntimeReady(): boolean`（非機密），供呼叫端在動用資金前判斷就緒狀態
+- 內部 `assertChainRuntimeReady()` 於**輸入驗證之後、接觸鏈之前**檢查，
+  設定不足一律向上拋，不再包成付款結果
+- 順序很重要：地址格式／金額等輸入驗證仍在最前面，
+  確保 CI 的離線測試完全不需要任何機密即可執行
+
+實測（移除 `.env.ai-runtime` 模擬 CI）：
+- `packages/smart-account` 30 項測試通過（有無 approval 皆然）
+- `apps/api` 該情境由 200 改為 **502**（不再謊稱付款完成）
+
+待 M2（`apps/api` 為其範圍，本包未修改）：
+若要讓該情境回 503 `CHAIN_INTEGRATION_NOT_READY`，可在既有就緒判斷加上
+`|| !smartAccount.chainRuntimeReady?.()`，即可在呼叫前 fail-closed。
+

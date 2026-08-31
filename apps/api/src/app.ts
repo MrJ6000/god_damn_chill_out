@@ -196,9 +196,16 @@ function parseChainExecution(
   return parsed.data;
 }
 
-function isConfirmedOnchainResult(execution: ExecutionResult): boolean {
-  // A user-op hash alone only proves submission. A mined transaction hash is
-  // required before the JSON ledger may cache a terminal result.
+function hasOnchainExecutionEvidence(execution: ExecutionResult): boolean {
+  // A pending result is deliberately non-terminal, but retaining either hash
+  // prevents an idempotent retry from broadcasting the same payment again.
+  if (execution.status === "PENDING") {
+    return (
+      execution.tx_hash !== undefined || execution.user_op_hash !== undefined
+    );
+  }
+
+  // Terminal results must include a mined transaction hash.
   return execution.tx_hash !== undefined;
 }
 
@@ -469,7 +476,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
             console.error("[api] smart-account returned an invalid execution");
             return { status: "chain-invalid-response" as const };
           }
-          if (!isConfirmedOnchainResult(parsedExecution)) {
+          if (!hasOnchainExecutionEvidence(parsedExecution)) {
             return { status: "chain-unconfirmed" as const };
           }
           execution = parsedExecution;
@@ -771,7 +778,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
             console.error("[api] smart-account returned an invalid execution");
             return { status: "chain-invalid-response" as const };
           }
-          if (!isConfirmedOnchainResult(parsedExecution)) {
+          if (!hasOnchainExecutionEvidence(parsedExecution)) {
             return { status: "chain-unconfirmed" as const };
           }
           execution = parsedExecution;
@@ -947,7 +954,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
         );
         return;
       }
-      if (!isConfirmedOnchainResult(execution)) {
+      if (!hasOnchainExecutionEvidence(execution)) {
         sendError(
           res,
           502,

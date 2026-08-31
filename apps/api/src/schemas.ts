@@ -115,17 +115,32 @@ export const policyDecisionSchema = z.object({
   latency_ms: z.number().finite().nonnegative(),
 }).strict();
 
-export const executionResultSchema = z.object({
-  intent_id: z.string().trim().min(1),
-  status: z.enum(["EXECUTED", "REJECTED", "SKIPPED"]),
-  tx_hash: transactionHashSchema.optional(),
-  user_op_hash: transactionHashSchema.optional(),
-  block_number: z.number().int().nonnegative().optional(),
-  explorer_url: z.string().trim().min(1).optional(),
-  error_code: z.string().trim().min(1).optional(),
-  error_message: z.string().optional(),
-  executed_at: z.string().datetime({ offset: true }),
-}).strict();
+export const executionResultSchema = z
+  .object({
+    intent_id: z.string().trim().min(1),
+    status: z.enum(["EXECUTED", "REJECTED", "PENDING", "SKIPPED"]),
+    tx_hash: transactionHashSchema.optional(),
+    user_op_hash: transactionHashSchema.optional(),
+    block_number: z.number().int().nonnegative().optional(),
+    explorer_url: z.string().trim().min(1).optional(),
+    error_code: z.string().trim().min(1).optional(),
+    error_message: z.string().optional(),
+    executed_at: z.string().datetime({ offset: true }),
+  })
+  .strict()
+  .superRefine((execution, context) => {
+    if (
+      execution.status === "PENDING" &&
+      !execution.tx_hash &&
+      !execution.user_op_hash
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["status"],
+        message: "A pending execution must retain its broadcast hash.",
+      });
+    }
+  });
 
 export const policyReceiptSchema = z.object({
   payment_id: z.string().trim().min(1),
@@ -273,12 +288,12 @@ export const storedPaymentRecordSchema = z
     if (
       record.decision.verdict === "REVIEW" &&
       record.receipt.human_approval === "APPROVED" &&
-      !["EXECUTED", "REJECTED"].includes(record.execution.status)
+      !["EXECUTED", "REJECTED", "PENDING"].includes(record.execution.status)
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["execution", "status"],
-        message: "An approved review must have a terminal chain result.",
+        message: "An approved review must have a submitted chain result.",
       });
     }
     if (
@@ -298,7 +313,17 @@ export const storedPaymentRecordSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["execution", "status"],
-        message: "An allowed payment must have a terminal chain result.",
+        message: "An allowed payment must have a submitted chain result.",
+      });
+    }
+    if (
+      record.execution_mode === "MOCK" &&
+      record.execution.status === "PENDING"
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["execution", "status"],
+        message: "A mock execution cannot remain pending.",
       });
     }
     if (

@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
 import type { RuntimeConfig } from "./mock.js";
 import { evaluatePolicy } from "./policy.js";
+import { executionResultSchema } from "./schemas.js";
 import type { StoredPaymentRecord } from "./store.js";
 
 const fixtureDataDir = fileURLToPath(new URL("../../../data", import.meta.url));
@@ -63,6 +64,22 @@ describe("PolicyVault mock API contract", () => {
   let server: Server | undefined;
   let baseUrl: string;
   let agentMockModes: Array<boolean | undefined>;
+
+  it("requires broadcast evidence for pending execution results", () => {
+    const pending = {
+      intent_id: "PI-PENDING",
+      status: "PENDING",
+      executed_at: fixedNow.toISOString(),
+    };
+
+    expect(executionResultSchema.safeParse(pending).success).toBe(false);
+    expect(
+      executionResultSchema.safeParse({
+        ...pending,
+        user_op_hash: `0x${"a".repeat(64)}`,
+      }).success,
+    ).toBe(true);
+  });
 
   beforeEach(async () => {
     agentMockModes = [];
@@ -952,7 +969,7 @@ describe("PolicyVault mock API contract", () => {
     }
   });
 
-  it("uses the Smart Account runtime for confirmed real-chain operations", async () => {
+  it("handles confirmed and pending Smart Account operations", async () => {
     if (!dataDir) throw new Error("Missing test data directory");
     const invoiceList = await invoices();
     const maliciousInvoice = invoiceList.find(
@@ -964,14 +981,35 @@ describe("PolicyVault mock API contract", () => {
     const planned = await plan([
       invoiceList[0],
       invoiceList[1],
+      invoiceList[2],
       maliciousInvoice,
       reviewInvoice,
     ]);
-    const [allowedIntent, unconfirmedIntent, deniedIntent, reviewIntent] =
-      planned;
+    const [
+      allowedIntent,
+      pendingIntent,
+      unconfirmedIntent,
+      deniedIntent,
+      reviewIntent,
+    ] = planned;
     const minedHash = `0x${"a".repeat(64)}`;
     const rejectedHash = `0x${"b".repeat(64)}`;
+    const pendingUserOpHash = `0x${"c".repeat(64)}`;
+    const pendingReviewHash = `0x${"d".repeat(64)}`;
+    const pendingRawHash = `0x${"e".repeat(64)}`;
+    const pendingExplorerUrl = `https://jiffyscan.xyz/userOpHash/${pendingUserOpHash}?network=base-sepolia`;
     const executeTransfer = vi.fn(async (intent: PaymentIntent) => {
+      if (intent.intent_id === pendingIntent.intent_id) {
+        return {
+          intent_id: intent.intent_id,
+          status: "PENDING" as const,
+          user_op_hash: pendingUserOpHash,
+          explorer_url: pendingExplorerUrl,
+          error_code: "RECEIPT_TIMEOUT",
+          error_message: "Broadcast succeeded; receipt is not available yet.",
+          executed_at: fixedNow.toISOString(),
+        };
+      }
       if (intent.intent_id === unconfirmedIntent.intent_id) {
         return {
           intent_id: intent.intent_id,
@@ -981,26 +1019,49 @@ describe("PolicyVault mock API contract", () => {
           executed_at: fixedNow.toISOString(),
         };
       }
+      if (intent.intent_id === reviewIntent.intent_id) {
+        return {
+          intent_id: intent.intent_id,
+          status: "PENDING" as const,
+          user_op_hash: pendingReviewHash,
+          error_code: "RECEIPT_TIMEOUT",
+          error_message: "Broadcast succeeded; receipt is not available yet.",
+          executed_at: fixedNow.toISOString(),
+        };
+      }
       return {
         intent_id: intent.intent_id,
         status: "EXECUTED" as const,
         tx_hash: minedHash,
-        user_op_hash: `0x${"c".repeat(64)}`,
+        user_op_hash: `0x${"f".repeat(64)}`,
         block_number: 123,
         explorer_url: `https://sepolia.basescan.org/tx/${minedHash}`,
         executed_at: fixedNow.toISOString(),
       };
     });
-    const executeRawTransferWithSessionKey = vi.fn(async () => ({
-      intent_id: "raw-bypass-test",
-      status: "REJECTED" as const,
-      tx_hash: rejectedHash,
-      block_number: 124,
-      explorer_url: `https://sepolia.basescan.org/tx/${rejectedHash}`,
-      error_code: "NOT_AI_SESSION",
-      error_message: "Rejected on-chain",
-      executed_at: fixedNow.toISOString(),
-    }));
+    const executeRawTransferWithSessionKey = vi.fn(
+      async (_recipient: string, amountRaw: string) =>
+        amountRaw === "4799000000"
+          ? {
+              intent_id: "raw-bypass-pending",
+              status: "PENDING" as const,
+              tx_hash: pendingRawHash,
+              explorer_url: `https://sepolia.basescan.org/tx/${pendingRawHash}`,
+              error_code: "RECEIPT_TIMEOUT",
+              error_message: "Broadcast succeeded; receipt is not available yet.",
+              executed_at: fixedNow.toISOString(),
+            }
+          : {
+              intent_id: "raw-bypass-test",
+              status: "REJECTED" as const,
+              tx_hash: rejectedHash,
+              block_number: 124,
+              explorer_url: `https://sepolia.basescan.org/tx/${rejectedHash}`,
+              error_code: "NOT_AI_SESSION",
+              error_message: "Rejected on-chain",
+              executed_at: fixedNow.toISOString(),
+            },
+    );
     const readSessionPermission = vi.fn(async () => ({
       allowed_token: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       max_per_tx_raw: "5000000000",
@@ -1066,6 +1127,45 @@ describe("PolicyVault mock API contract", () => {
         },
       });
 
+      const pendingRequest = {
+        intent: pendingIntent,
+        decision: clientDecision(pendingIntent.intent_id),
+      };
+      const pending = await realPost("/api/payments/execute", pendingRequest);
+      expect(pending.status).toBe(200);
+      expect(await pending.json()).toMatchObject({
+        ok: true,
+        data: {
+          execution: {
+            status: "PENDING",
+            user_op_hash: pendingUserOpHash,
+            explorer_url: pendingExplorerUrl,
+          },
+          receipt: {
+            funds_moved_display: 0,
+            execution: {
+              status: "PENDING",
+              user_op_hash: pendingUserOpHash,
+            },
+          },
+        },
+      });
+
+      const pendingRetry = await realPost(
+        "/api/payments/execute",
+        pendingRequest,
+      );
+      expect(pendingRetry.status).toBe(200);
+      expect(await pendingRetry.json()).toMatchObject({
+        ok: true,
+        data: {
+          execution: {
+            status: "PENDING",
+            user_op_hash: pendingUserOpHash,
+          },
+        },
+      });
+
       const unconfirmed = await realPost("/api/payments/execute", {
         intent: unconfirmedIntent,
         decision: clientDecision(unconfirmedIntent.intent_id),
@@ -1113,8 +1213,22 @@ describe("PolicyVault mock API contract", () => {
         data: {
           human_approval: "APPROVED",
           session_permission_id: "ZERODEV-PERMISSION-TEST",
-          execution: { status: "EXECUTED", tx_hash: minedHash },
+          execution: {
+            status: "PENDING",
+            user_op_hash: pendingReviewHash,
+          },
+          funds_moved_display: 0,
         },
+      });
+
+      const approvalRetry = await realPost(
+        `/api/approvals/${reviewIntent.intent_id}`,
+        { approve: true },
+      );
+      expect(approvalRetry.status).toBe(409);
+      expect(await approvalRetry.json()).toMatchObject({
+        ok: false,
+        error: { code: "APPROVAL_ALREADY_DECIDED" },
       });
 
       const bypass = await realPost("/api/attack/direct-bypass", {
@@ -1135,6 +1249,20 @@ describe("PolicyVault mock API contract", () => {
         "4800000000",
       );
 
+      const pendingBypass = await realPost("/api/attack/direct-bypass", {
+        recipient: attackerAddress,
+        amount_display: 4_799,
+      });
+      expect(pendingBypass.status).toBe(200);
+      expect(await pendingBypass.json()).toMatchObject({
+        ok: true,
+        data: {
+          status: "PENDING",
+          tx_hash: pendingRawHash,
+          explorer_url: `https://sepolia.basescan.org/tx/${pendingRawHash}`,
+        },
+      });
+
       const blastRadius = await fetch(`${realUrl}/api/blast-radius`);
       expect(blastRadius.status).toBe(200);
       expect(await blastRadius.json()).toMatchObject({
@@ -1154,13 +1282,13 @@ describe("PolicyVault mock API contract", () => {
         Array<{ session_permission_id: string }>
       >;
       expect(receiptBody.ok).toBe(true);
-      expect(receiptBody.data).toHaveLength(3);
+      expect(receiptBody.data).toHaveLength(4);
       expect(
         receiptBody.data.every(
           (receipt) => receipt.session_permission_id !== "SP-MOCK",
         ),
       ).toBe(true);
-      expect(executeTransfer).toHaveBeenCalledTimes(3);
+      expect(executeTransfer).toHaveBeenCalledTimes(4);
 
       const mockReceipts = await get<unknown[]>("/api/receipts");
       expect(mockReceipts.body.ok && mockReceipts.body.data).toHaveLength(0);
@@ -1544,6 +1672,57 @@ describe("PolicyVault mock API contract", () => {
       ok: false,
       error: { code: "VALIDATION_ERROR" },
     });
+  });
+
+  it("reserves stale pending submissions until receipt reconciliation", () => {
+    const now = new Date("2026-08-29T00:01:00.000Z");
+    const vendor = {
+      vendor_id: "VEN-001",
+      display_name: "ABC Cloud",
+      verified_wallet: "0xAAA0000000000000000000000000000000000001",
+      verified: true,
+      status: "KNOWN" as const,
+      created_at: "2025-01-10T00:00:00Z",
+    };
+    const intent: PaymentIntent = {
+      intent_id: "PI-AFTER-PENDING",
+      invoice_id: "INV-PENDING",
+      vendor_name: vendor.display_name,
+      recipient: vendor.verified_wallet,
+      amount_display: 5_001,
+      amount_raw: "5001000000",
+      token: "USDC",
+      action: "transfer",
+      reasoning: "test",
+      created_at: now.toISOString(),
+    };
+    const pendingRecord = {
+      intent: {
+        ...intent,
+        intent_id: "PI-PENDING",
+        amount_display: 5_000,
+        amount_raw: "5000000000",
+      },
+      execution: {
+        status: "PENDING",
+        user_op_hash: `0x${"a".repeat(64)}`,
+        executed_at: "2026-08-27T00:00:00.000Z",
+      },
+      receipt: { funds_moved_display: 0 },
+    } as StoredPaymentRecord;
+    const config: RuntimeConfig = {
+      policyVersion: "V18",
+      maxPerTxDisplay: 6_000,
+      maxPer24hDisplay: 10_000,
+      sessionExpiresAt: "2026-09-07T23:59:00Z",
+      treasuryBalanceDisplay: 2_000_000,
+    };
+
+    const decision = evaluatePolicy(intent, [vendor], [pendingRecord], now, config);
+
+    expect(decision.verdict).toBe("DENY");
+    expect(decision.deny_reasons).toContain("DAILY_LIMIT_EXCEEDED");
+    expect(decision.deny_reasons).toContain("DUPLICATE_PAYMENT");
   });
 
   it("uses a rolling 24-hour window and trusts only verified vendors", () => {

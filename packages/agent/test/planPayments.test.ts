@@ -37,14 +37,17 @@ describe("planPayments", () => {
       }),
     ];
 
-    const result = await planPayments({
-      instruction: "Process today's approved payments.",
-      invoices,
-      vendorContext: [
-        { display_name: "ABC Cloud", status: "KNOWN" },
-        { display_name: "Northwind Logistics", status: "KNOWN" },
-      ],
-    });
+    const result = await planPayments(
+      {
+        instruction: "Process today's approved payments.",
+        invoices,
+        vendorContext: [
+          { display_name: "ABC Cloud", status: "KNOWN" },
+          { display_name: "Northwind Logistics", status: "KNOWN" },
+        ],
+      },
+      { mockMode: true },
+    );
 
     expect(result.intents).toHaveLength(3);
     expect(new Set(result.intents.map((intent) => intent.intent_id)).size).toBe(3);
@@ -79,11 +82,14 @@ describe("planPayments", () => {
       }),
     );
 
-    const result = await planPayments({
-      instruction: "Process all approved invoices.",
-      invoices,
-      vendorContext: [],
-    });
+    const result = await planPayments(
+      {
+        instruction: "Process all approved invoices.",
+        invoices,
+        vendorContext: [],
+      },
+      { mockMode: true },
+    );
 
     expect(result.intents).toHaveLength(18);
     expect(new Set(result.intents.map((intent) => intent.intent_id)).size).toBe(
@@ -93,11 +99,14 @@ describe("planPayments", () => {
   });
 
   it("uses the attacker recipient from the INV-8821 malicious memo", async () => {
-    const result = await planPayments({
-      instruction: "Process today's approved payments.",
-      invoices: [MALICIOUS_INVOICE],
-      vendorContext: [],
-    });
+    const result = await planPayments(
+      {
+        instruction: "Process today's approved payments.",
+        invoices: [MALICIOUS_INVOICE],
+        vendorContext: [],
+      },
+      { mockMode: true },
+    );
 
     expect(result.intents).toHaveLength(1);
     expect(result.intents[0]).toMatchObject({
@@ -117,8 +126,8 @@ describe("planPayments", () => {
     };
 
     const [first, second] = await Promise.all([
-      planPayments(input),
-      planPayments(input),
+      planPayments(input, { mockMode: true }),
+      planPayments(input, { mockMode: true }),
     ]);
 
     expect(first.intents[0]?.intent_id).not.toBe(
@@ -127,11 +136,14 @@ describe("planPayments", () => {
   });
 
   it("returns an empty plan when no invoices are supplied", async () => {
-    const result = await planPayments({
-      instruction: "Process today's approved payments.",
-      invoices: [],
-      vendorContext: [],
-    });
+    const result = await planPayments(
+      {
+        instruction: "Process today's approved payments.",
+        invoices: [],
+        vendorContext: [],
+      },
+      { mockMode: true },
+    );
 
     expect(result.intents).toEqual([]);
     expect(result.agent_message).toBe(

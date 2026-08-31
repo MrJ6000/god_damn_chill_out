@@ -62,15 +62,14 @@ const SESSION_KEY_APPROVAL = process.env.SESSION_KEY_APPROVAL!;
  */
 
 /**
- * Review #1：用於「已送出但結果未確認」的狀態。
- * shared 的 ExecutionResult.status 目前只有 EXECUTED / REJECTED / SKIPPED，
- * 沒有能誠實表達「尚未確認」的值，而該型別由 M2 維護，本包不自行修改。
- * 在 M2 加入 "PENDING" 之前暫時沿用 "REJECTED"，但一律附上 hash 與
- * error_code = "RECEIPT_TIMEOUT"，讓呼叫端能區分「逾時未確認」與「確定被拒絕」。
- * 合約端有 paidInvoice 重複付款保護，因此呼叫端即使據此重試同一張發票也不會重複付款。
- * TODO(M2)：型別加入 "PENDING" 後，把下面這一行改成 "PENDING" 即可。
+ * Review #1：用於「已廣播、但結果尚未確認」的狀態。
+ * shared 的 ExecutionResult.status 已加入 "PENDING"（M2 於 PR #13 補上）。
+ * 一旦取得 userOpHash / txHash，之後任何等待失敗都回報此狀態，並保留 hash 與
+ * error_code = "RECEIPT_TIMEOUT"，讓呼叫端能區分「未確認」與「確定被鏈上拒絕」，
+ * 避免把可能已成功的付款誤判為失敗而重送。
+ * 合約端的 paidInvoice 重複付款保護是第二道防線。
  */
-const PENDING_STATUS: ExecutionResult["status"] = "REJECTED";
+const PENDING_STATUS: ExecutionResult["status"] = "PENDING";
 
 /** 靜態宣告：本模組只會使用 AI Session Key，不會使用 CFO Root Key。 */
 export const sessionKeyOnly = true;
@@ -362,6 +361,20 @@ export async function executeTransfer(intent: PaymentIntent): Promise<ExecutionR
     try {
       receipt = await kernelClient.waitForUserOperationReceipt({ hash: userOpHash });
     } catch (waitErr: any) {
+      // 逾時不等於失敗。先盡力補查一次：如果其實已經上鏈，就回報真正的結果，
+      // 不要把一筆可能已完成的付款回報成 PENDING。
+      try {
+        const late = await kernelClient.getUserOperationReceipt({ hash: userOpHash });
+        if (late) {
+          return interpretUserOpReceipt(late as unknown as UserOpReceiptLike, {
+            intent_id: intent.intent_id,
+            user_op_hash: userOpHash,
+            executed_at,
+          });
+        }
+      } catch {
+        // 補查也失敗，維持「未確認」的誠實回報
+      }
       return buildReceiptTimeoutResult({
         intent_id: intent.intent_id,
         executed_at,

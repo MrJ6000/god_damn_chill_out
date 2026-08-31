@@ -271,3 +271,18 @@ describe("buildReceiptTimeoutResult", () => {
     expect(r.status).not.toBe("SKIPPED");
   });
 });
+
+
+describe("PENDING status (shared 型別已支援)", () => {
+  it("reports PENDING with the hash preserved, never a silent failure", () => {
+    const r = buildReceiptTimeoutResult({
+      intent_id: "i-5",
+      executed_at: "2026-08-31T00:00:00.000Z",
+      user_op_hash: "0xop",
+      cause: new Error("timed out"),
+    });
+    expect(r.status).toBe("PENDING");
+    expect(r.user_op_hash).toBe("0xop");
+    expect(r.error_code).toBe("RECEIPT_TIMEOUT");
+  });
+});

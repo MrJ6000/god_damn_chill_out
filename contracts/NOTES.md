@@ -66,10 +66,15 @@ Circle 水龍頭重新入金 20 USDC，收款人白名單已重設。
 一旦拿到 `userOpHash` / `txHash`，之後任何等待失敗都會保留 hash 與 explorer_url，
 並回報 `error_code = "RECEIPT_TIMEOUT"`，明確表示「已送出、結果未確認」。
 
-⚠️ 未完成部分：`ExecutionResult.status` 目前只有 `EXECUTED / REJECTED / SKIPPED`，
-沒有能誠實表達「未確認」的值。該型別屬於 `packages/shared`（M2 維護），本包不自行修改，
-已請 M2 加入 `PENDING`。在那之前程式中以單一常數 `PENDING_STATUS` 集中管理，
-型別加好後只需改該行。合約端的 `paidInvoice` 重複付款保護可避免呼叫端誤重試造成重複付款。
+✅ 8/31 更新：`packages/shared` 已加入 `PENDING`（M2, PR #13），本包已接上。
+逾時一律回傳 `status: "PENDING"` 並保留 `user_op_hash`。
+另加一次補救查詢：逾時後會再查一次 receipt，若其實已經上鏈就回報真正的結果
+（EXECUTED / REJECTED，含 tx_hash 與 explorer_url），確定查不到才回 PENDING。
+合約端的 `paidInvoice` 重複付款保護為第二道防線。
+
+⚠️ 待團隊決定：UserOp 尚未上鏈時沒有對應的 basescan 交易頁面，該情況下
+`explorer_url` 會缺省（只提供 `user_op_hash`）。若前端需要連結，要先決定採用哪個
+UserOp 瀏覽器再補上。
 
 ### 2. Rolling window 改為固定成本（gas DoS 修復）
 原本的 `TransferRecord[] transferHistory` + 線性回掃會隨交易筆數無上限變貴，

@@ -63,6 +63,8 @@ export interface SmartAccountRuntime {
   sessionKeyOnly?: boolean;
   /** Stable identifier for the exact scoped permission used for execution. */
   sessionPermissionId?: string;
+  /** Whether every runtime setting required to move funds is available. */
+  chainRuntimeReady?: () => boolean;
   executeTransfer?: (intent: PaymentIntent) => Promise<ExecutionResult>;
   executeRawTransferWithSessionKey?: (
     recipient: string,
@@ -207,6 +209,15 @@ function hasOnchainExecutionEvidence(execution: ExecutionResult): boolean {
 
   // Terminal results must include a mined transaction hash.
   return execution.tx_hash !== undefined;
+}
+
+function isChainRuntimeReady(runtime: SmartAccountRuntime): boolean {
+  try {
+    return runtime.chainRuntimeReady?.() === true;
+  } catch (error) {
+    console.error("[api] smart-account readiness check failed", error);
+    return false;
+  }
 }
 
 function hasUsableSessionPermission(
@@ -456,6 +467,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
           }
           if (
             !smartAccount.executeTransfer ||
+            !isChainRuntimeReady(smartAccount) ||
             !hasUsableSessionPermission(smartAccount)
           ) {
             return { status: "chain-not-ready" as const };
@@ -550,7 +562,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
           res,
           503,
           "CHAIN_INTEGRATION_NOT_READY",
-          "@pv/smart-account must provide a session-only executeTransfer runtime and a real permission ID. Set MOCK_CHAIN=1 for mock mode.",
+          "@pv/smart-account must report a ready session-only executeTransfer runtime and a real permission ID. Set MOCK_CHAIN=1 for mock mode.",
         );
         return;
       }
@@ -758,6 +770,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
           }
           if (
             !smartAccount.executeTransfer ||
+            !isChainRuntimeReady(smartAccount) ||
             !hasUsableSessionPermission(smartAccount)
           ) {
             return { status: "chain-not-ready" as const };
@@ -828,7 +841,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
           res,
           503,
           "CHAIN_INTEGRATION_NOT_READY",
-          "@pv/smart-account must provide a session-only executeTransfer runtime and a real permission ID. Set MOCK_CHAIN=1 for mock mode.",
+          "@pv/smart-account must report a ready session-only executeTransfer runtime and a real permission ID. Set MOCK_CHAIN=1 for mock mode.",
         );
         return;
       }
@@ -916,13 +929,14 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       }
       if (
         !smartAccount.executeRawTransferWithSessionKey ||
-        smartAccount.sessionKeyOnly !== true
+        smartAccount.sessionKeyOnly !== true ||
+        !isChainRuntimeReady(smartAccount)
       ) {
         sendError(
           res,
           503,
           "CHAIN_INTEGRATION_NOT_READY",
-          "@pv/smart-account does not provide a session-only direct-bypass runtime.",
+          "@pv/smart-account does not provide a ready session-only direct-bypass runtime.",
         );
         return;
       }

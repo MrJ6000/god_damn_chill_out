@@ -1,3 +1,9 @@
+# AI runtime 環境設定
+
+把下面的內容複製成 repo 根目錄的 `.env.ai-runtime` 並填入實際值。
+該檔已被 `.gitignore` 排除，不會進版控。
+
+```bash
 # ---------------------------------------------------------------
 # AI runtime 專用環境檔範本
 # 用法：複製成 .env.ai-runtime 並填入實際值。
@@ -41,3 +47,4 @@ SESSION_KEY_APPROVAL=
 
 # 選填：白名單收款人候選清單（逗號分隔），用於統計目前生效的收款人數
 # KNOWN_RECIPIENT_CANDIDATES=0x...,0x...
+```

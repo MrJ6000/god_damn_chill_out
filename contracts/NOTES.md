@@ -95,7 +95,7 @@ UserOp 瀏覽器再補上。
   一旦偵測到上述兩個特權金鑰即拋錯拒絕啟動。已實測：乾淨環境正常、帶 CFO 金鑰則被擋。
 - 另加 `assertExpectedAccount`：由 approval 重建出的帳戶地址若與 `SMART_ACCOUNT_ADDRESS`
   不一致（例如重新部署後忘記重產 approval），直接拒絕啟動。
-- 新增 `.env.ai-runtime.example`（可進版控），內含 SESSION_KEY_APPROVAL 的完整設定說明。
+- 新增 `packages/smart-account/AI_RUNTIME_ENV.md`（可進版控），內含 SESSION_KEY_APPROVAL 的完整設定說明。
 
 ### 4. 非機密自我宣告欄位
 `index.ts` 匯出 `sessionKeyOnly = true` 與 `sessionPermissionId`

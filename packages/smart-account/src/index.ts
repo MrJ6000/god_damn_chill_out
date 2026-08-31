@@ -216,7 +216,12 @@ export function validateAmount(amountRaw: string): AmountValidation {
 
 // 目前白名單裡的收款人候選清單（Root 手動維護；用來實際上鏈核對算出人數）
 const KNOWN_RECIPIENT_CANDIDATES = (
-  process.env.KNOWN_RECIPIENT_CANDIDATES ?? "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27"
+  process.env.KNOWN_RECIPIENT_CANDIDATES ??
+  // data/vendors.json 的四家已驗證廠商（VEN-001 ~ VEN-004）
+  "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27," +
+    "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d," +
+    "0xb01f165430BA7afd2Cf4Ff0D3a725DDea880D865," +
+    "0x8bb79D60cFd1FFb5aDEBEdeD2387A9F2455F554D"
 )
   .split(",")
   .map((s) => s.trim() as `0x${string}`)

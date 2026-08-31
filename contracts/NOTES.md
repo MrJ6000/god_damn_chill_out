@@ -29,7 +29,7 @@ forge script script/Deploy.s.sol \
 | USDC (Base Sepolia) | 0x036CbD53842c5426634e7929541eC2318f3dCF7e |
 | CFO Root | 0x514De60834d21eC0E67af32F937FE0A83519a4F5 |
 | AI Session (Scoped, via Smart Account) | 0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F |
-| Hacker（Demo 用） | |
+| Hacker（Demo 用，無人持有私鑰） | 0x8888888888888888888888888888888888888888 |
 
 ## 成功交易備份（保命用，9/2 前備妥 3 筆）
 

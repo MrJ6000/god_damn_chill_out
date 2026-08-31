@@ -118,13 +118,15 @@ export interface PolicyDecision {
 
 export interface ExecutionResult {
   intent_id: string;
-  status: "EXECUTED" | "REJECTED" | "SKIPPED";
+  /** PENDING means broadcast succeeded but the final receipt is still unknown; retain at least one hash. */
+  status: "EXECUTED" | "REJECTED" | "PENDING" | "SKIPPED";
   tx_hash?: string;
   user_op_hash?: string;
   block_number?: number;
   explorer_url?: string;
   error_code?: string;
   error_message?: string;
+  /** Completion time, or the broadcast time while status is PENDING. */
   executed_at: string;
 }
 

@@ -34,18 +34,27 @@ export function buildPolicyContext(
   now: Date,
   config: RuntimeConfig,
 ): PolicyContext {
-  const recentExecutions = records.filter((record) =>
-    executedInRollingWindow(record, now),
+  const reservedSubmissions = records.filter(
+    (record) =>
+      record.execution.status === "PENDING" ||
+      executedInRollingWindow(record, now),
   );
 
   return {
     // An unverified registry row must never become a trusted beneficiary.
     vendors: vendors.filter((vendor) => vendor.verified),
-    todaySpentDisplay: recentExecutions.reduce(
-      (total, record) => total + record.receipt.funds_moved_display,
+    // An unresolved pending submission never expires locally. Only receipt
+    // reconciliation may release it, otherwise a new intent could rebroadcast
+    // the same payment after the normal rolling window ends.
+    todaySpentDisplay: reservedSubmissions.reduce(
+      (total, record) =>
+        total +
+        (record.execution.status === "PENDING"
+          ? record.intent.amount_display
+          : record.receipt.funds_moved_display),
       0,
     ),
-    paidInvoiceIdsToday: recentExecutions.map(
+    paidInvoiceIdsToday: reservedSubmissions.map(
       (record) => record.intent.invoice_id,
     ),
     sessionExpiresAt: config.sessionExpiresAt,

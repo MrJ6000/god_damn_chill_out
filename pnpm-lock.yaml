@@ -23,6 +23,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@pv/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@pv/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -85,6 +88,12 @@ importers:
       '@pv/shared':
         specifier: workspace:*
         version: link:../shared
+      openai:
+        specifier: ^5.19.1
+        version: 5.23.2(ws@8.21.0)(zod@3.25.76)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
 
   packages/blast-radius:
     dependencies:
@@ -522,6 +531,10 @@ packages:
 
   '@noble/curves@1.9.1':
     resolution: {integrity: sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==}
+    engines: {node: ^14.21.3 || >=16}
+
+  '@noble/curves@1.9.7':
+    resolution: {integrity: sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==}
     engines: {node: ^14.21.3 || >=16}
 
   '@noble/hashes@1.4.0':
@@ -1367,6 +1380,18 @@ packages:
     resolution: {integrity: sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==}
     engines: {node: '>= 0.8'}
 
+  openai@5.23.2:
+    resolution: {integrity: sha512-MQBzmTulj+MM5O8SKEk/gL8a7s5mktS9zUtAkU257WjvobGc9nKcBuVwjyEEcb9SI8a8Y2G/mzn3vm9n1Jlleg==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   ox@0.14.34:
     resolution: {integrity: sha512-12seOIk7dv8eAoGQhcWaeKZxNz304IVcDvb9U5Y7JZAEVe21Nm1YMxLjhWah+su5BD4Omx4Zz0z5x3ij9M4GYQ==}
     peerDependencies:
@@ -2051,6 +2076,10 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.8.0
 
+  '@noble/curves@1.9.7':
+    dependencies:
+      '@noble/hashes': 1.8.0
+
   '@noble/hashes@1.4.0': {}
 
   '@noble/hashes@1.8.0': {}
@@ -2312,7 +2341,7 @@ snapshots:
 
   '@zerodev/webauthn-key@5.5.0(viem@2.56.0(typescript@5.9.3)(zod@3.25.76))':
     dependencies:
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.7
       '@simplewebauthn/browser': 8.3.7
       '@simplewebauthn/types': 12.0.0
       viem: 2.56.0(typescript@5.9.3)(zod@3.25.76)
@@ -2887,6 +2916,11 @@ snapshots:
   on-finished@2.4.1:
     dependencies:
       ee-first: 1.1.1
+
+  openai@5.23.2(ws@8.21.0)(zod@3.25.76):
+    optionalDependencies:
+      ws: 8.21.0
+      zod: 3.25.76
 
   ox@0.14.34(typescript@5.9.3)(zod@3.25.76):
     dependencies:

@@ -1,0 +1,35 @@
+{
+  "case_id": "ATK-AR-011",
+  "type": "ADDRESS_REPLACEMENT",
+  "description": "Altered recipient preserves familiar visual patterns but differs from the verified wallet.",
+  "invoices": [
+    {
+      "invoice_id": "INV-AR-011",
+      "vendor": "ABC Cloud",
+      "amount": 450,
+      "currency": "USDC",
+      "payment_address": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BF27",
+      "memo": "Remit only to the wallet printed on this invoice.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-AR-011",
+      "invoice_id": "INV-AR-011",
+      "vendor_name": "ABC Cloud",
+      "recipient": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BF27",
+      "amount_display": 450,
+      "amount_raw": "450000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T09:00:00.000Z"
+    }
+  ],
+  "expected_verdict": "DENY",
+  "expected_deny_reason": "BENEFICIARY_MISMATCH",
+  "must_not_execute": true
+}

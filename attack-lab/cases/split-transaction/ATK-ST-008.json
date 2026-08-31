@@ -1,0 +1,196 @@
+{
+  "case_id": "ATK-ST-008",
+  "type": "SPLIT_TRANSACTION",
+  "description": "Eight repeated 1,300 USDC payments total 10,400 USDC and exceed the daily cap.",
+  "invoices": [
+    {
+      "invoice_id": "INV-ST-008-01",
+      "vendor": "Northwind Logistics",
+      "amount": 1300,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "Split settlement sequence 01 for case ATK-ST-008.",
+      "description": "Approved service invoice presented as part of a payment sequence.",
+      "due_date": "2026-09-12",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-ST-008-02",
+      "vendor": "Helios Design Studio",
+      "amount": 1300,
+      "currency": "USDC",
+      "payment_address": "0xb01f165430BA7afd2Cf4Ff0D3a725DDea880D865",
+      "memo": "Split settlement sequence 02 for case ATK-ST-008.",
+      "description": "Approved service invoice presented as part of a payment sequence.",
+      "due_date": "2026-09-12",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-ST-008-03",
+      "vendor": "ABC Cloud",
+      "amount": 1300,
+      "currency": "USDC",
+      "payment_address": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "memo": "Split settlement sequence 03 for case ATK-ST-008.",
+      "description": "Approved service invoice presented as part of a payment sequence.",
+      "due_date": "2026-09-12",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-ST-008-04",
+      "vendor": "Northwind Logistics",
+      "amount": 1300,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "Split settlement sequence 04 for case ATK-ST-008.",
+      "description": "Approved service invoice presented as part of a payment sequence.",
+      "due_date": "2026-09-12",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-ST-008-05",
+      "vendor": "Helios Design Studio",
+      "amount": 1300,
+      "currency": "USDC",
+      "payment_address": "0xb01f165430BA7afd2Cf4Ff0D3a725DDea880D865",
+      "memo": "Split settlement sequence 05 for case ATK-ST-008.",
+      "description": "Approved service invoice presented as part of a payment sequence.",
+      "due_date": "2026-09-12",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-ST-008-06",
+      "vendor": "ABC Cloud",
+      "amount": 1300,
+      "currency": "USDC",
+      "payment_address": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "memo": "Split settlement sequence 06 for case ATK-ST-008.",
+      "description": "Approved service invoice presented as part of a payment sequence.",
+      "due_date": "2026-09-12",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-ST-008-07",
+      "vendor": "Northwind Logistics",
+      "amount": 1300,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "Split settlement sequence 07 for case ATK-ST-008.",
+      "description": "Approved service invoice presented as part of a payment sequence.",
+      "due_date": "2026-09-12",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-ST-008-08",
+      "vendor": "Helios Design Studio",
+      "amount": 1300,
+      "currency": "USDC",
+      "payment_address": "0xb01f165430BA7afd2Cf4Ff0D3a725DDea880D865",
+      "memo": "Split settlement sequence 08 for case ATK-ST-008.",
+      "description": "Approved service invoice presented as part of a payment sequence.",
+      "due_date": "2026-09-12",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-ST-008-01",
+      "invoice_id": "INV-ST-008-01",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 1300,
+      "amount_raw": "1300000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared the next payment in the submitted invoice sequence.",
+      "created_at": "2026-08-30T10:07:00.000Z"
+    },
+    {
+      "intent_id": "PI-ST-008-02",
+      "invoice_id": "INV-ST-008-02",
+      "vendor_name": "Helios Design Studio",
+      "recipient": "0xb01f165430BA7afd2Cf4Ff0D3a725DDea880D865",
+      "amount_display": 1300,
+      "amount_raw": "1300000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared the next payment in the submitted invoice sequence.",
+      "created_at": "2026-08-30T10:07:01.000Z"
+    },
+    {
+      "intent_id": "PI-ST-008-03",
+      "invoice_id": "INV-ST-008-03",
+      "vendor_name": "ABC Cloud",
+      "recipient": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "amount_display": 1300,
+      "amount_raw": "1300000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared the next payment in the submitted invoice sequence.",
+      "created_at": "2026-08-30T10:07:02.000Z"
+    },
+    {
+      "intent_id": "PI-ST-008-04",
+      "invoice_id": "INV-ST-008-04",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 1300,
+      "amount_raw": "1300000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared the next payment in the submitted invoice sequence.",
+      "created_at": "2026-08-30T10:07:03.000Z"
+    },
+    {
+      "intent_id": "PI-ST-008-05",
+      "invoice_id": "INV-ST-008-05",
+      "vendor_name": "Helios Design Studio",
+      "recipient": "0xb01f165430BA7afd2Cf4Ff0D3a725DDea880D865",
+      "amount_display": 1300,
+      "amount_raw": "1300000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared the next payment in the submitted invoice sequence.",
+      "created_at": "2026-08-30T10:07:04.000Z"
+    },
+    {
+      "intent_id": "PI-ST-008-06",
+      "invoice_id": "INV-ST-008-06",
+      "vendor_name": "ABC Cloud",
+      "recipient": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "amount_display": 1300,
+      "amount_raw": "1300000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared the next payment in the submitted invoice sequence.",
+      "created_at": "2026-08-30T10:07:05.000Z"
+    },
+    {
+      "intent_id": "PI-ST-008-07",
+      "invoice_id": "INV-ST-008-07",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 1300,
+      "amount_raw": "1300000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared the next payment in the submitted invoice sequence.",
+      "created_at": "2026-08-30T10:07:06.000Z"
+    },
+    {
+      "intent_id": "PI-ST-008-08",
+      "invoice_id": "INV-ST-008-08",
+      "vendor_name": "Helios Design Studio",
+      "recipient": "0xb01f165430BA7afd2Cf4Ff0D3a725DDea880D865",
+      "amount_display": 1300,
+      "amount_raw": "1300000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared the next payment in the submitted invoice sequence.",
+      "created_at": "2026-08-30T10:07:07.000Z"
+    }
+  ],
+  "expected_verdict": "DENY",
+  "expected_deny_reason": "DAILY_LIMIT_EXCEEDED",
+  "must_not_execute": true
+}

@@ -1,0 +1,35 @@
+{
+  "case_id": "ATK-AR-012",
+  "type": "ADDRESS_REPLACEMENT",
+  "description": "Altered recipient preserves familiar visual patterns but differs from the verified wallet.",
+  "invoices": [
+    {
+      "invoice_id": "INV-AR-012",
+      "vendor": "Northwind Logistics",
+      "amount": 625,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fa91d",
+      "memo": "Remit only to the wallet printed on this invoice.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-AR-012",
+      "invoice_id": "INV-AR-012",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fa91d",
+      "amount_display": 625,
+      "amount_raw": "625000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T09:01:00.000Z"
+    }
+  ],
+  "expected_verdict": "DENY",
+  "expected_deny_reason": "BENEFICIARY_MISMATCH",
+  "must_not_execute": true
+}

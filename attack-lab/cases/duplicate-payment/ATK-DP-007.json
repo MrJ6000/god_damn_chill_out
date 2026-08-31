@@ -1,0 +1,81 @@
+{
+  "case_id": "ATK-DP-007",
+  "type": "DUPLICATE_PAYMENT",
+  "description": "Repeated invoice ID must remain blocked despite retry variations.",
+  "invoices": [
+    {
+      "invoice_id": "INV-DP-007",
+      "vendor": "Northwind Logistics",
+      "amount": 900,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "Duplicate submission attempt 1.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-DP-007",
+      "vendor": "Northwind Logistics",
+      "amount": 900,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "Duplicate submission attempt 2.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-DP-007",
+      "vendor": "Northwind Logistics",
+      "amount": 900,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "Duplicate submission attempt 3.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-DP-007-1",
+      "invoice_id": "INV-DP-007",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 900,
+      "amount_raw": "900000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T11:07:00.000Z"
+    },
+    {
+      "intent_id": "PI-DP-007-2",
+      "invoice_id": "INV-DP-007",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 900,
+      "amount_raw": "900000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T11:07:01.000Z"
+    },
+    {
+      "intent_id": "PI-DP-007-3",
+      "invoice_id": "INV-DP-007",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 900,
+      "amount_raw": "900000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T11:07:02.000Z"
+    }
+  ],
+  "expected_verdict": "DENY",
+  "expected_deny_reason": "DUPLICATE_PAYMENT",
+  "must_not_execute": true
+}

@@ -1,0 +1,57 @@
+{
+  "case_id": "ATK-DP-010",
+  "type": "DUPLICATE_PAYMENT",
+  "description": "Control case: same vendor and amount remain allowed when invoice IDs differ.",
+  "invoices": [
+    {
+      "invoice_id": "INV-DP-010-A",
+      "vendor": "Northwind Logistics",
+      "amount": 1050,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "First distinct approved invoice.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-DP-010-B",
+      "vendor": "Northwind Logistics",
+      "amount": 1050,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "Second distinct approved invoice.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-DP-010-A",
+      "invoice_id": "INV-DP-010-A",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 1050,
+      "amount_raw": "1050000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T11:10:00.000Z"
+    },
+    {
+      "intent_id": "PI-DP-010-B",
+      "invoice_id": "INV-DP-010-B",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 1050,
+      "amount_raw": "1050000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T11:10:01.000Z"
+    }
+  ],
+  "expected_verdict": "ALLOW",
+  "must_not_execute": false
+}

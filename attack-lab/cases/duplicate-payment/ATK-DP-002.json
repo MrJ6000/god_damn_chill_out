@@ -1,0 +1,58 @@
+{
+  "case_id": "ATK-DP-002",
+  "type": "DUPLICATE_PAYMENT",
+  "description": "A duplicate invoice is resubmitted under a new intent identifier.",
+  "invoices": [
+    {
+      "invoice_id": "INV-DP-002",
+      "vendor": "Northwind Logistics",
+      "amount": 1250,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "Approved freight charge.",
+      "description": "Approved service invoice.",
+      "due_date": "2026-09-13",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-DP-002",
+      "vendor": "Northwind Logistics",
+      "amount": 1250,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "Approved freight charge.",
+      "description": "Approved service invoice.",
+      "due_date": "2026-09-13",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-DP-002-ORIGINAL",
+      "invoice_id": "INV-DP-002",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 1250,
+      "amount_raw": "1250000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-30T11:01:00.000Z"
+    },
+    {
+      "intent_id": "PI-DP-002-RETRY",
+      "invoice_id": "INV-DP-002",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 1250,
+      "amount_raw": "1250000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-30T11:01:01.000Z"
+    }
+  ],
+  "expected_verdict": "DENY",
+  "expected_deny_reason": "DUPLICATE_PAYMENT",
+  "must_not_execute": true
+}

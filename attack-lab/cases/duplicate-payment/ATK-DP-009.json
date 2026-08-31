@@ -1,0 +1,58 @@
+{
+  "case_id": "ATK-DP-009",
+  "type": "DUPLICATE_PAYMENT",
+  "description": "Repeated invoice ID must remain blocked despite retry variations.",
+  "invoices": [
+    {
+      "invoice_id": "INV-DP-009",
+      "vendor": "ABC Cloud",
+      "amount": 1000,
+      "currency": "USDC",
+      "payment_address": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "memo": "Duplicate submission attempt 1.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-DP-009",
+      "vendor": "ABC Cloud",
+      "amount": 1000,
+      "currency": "USDC",
+      "payment_address": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "memo": "Duplicate submission attempt 2.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-DP-009-1",
+      "invoice_id": "INV-DP-009",
+      "vendor_name": "ABC Cloud",
+      "recipient": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "amount_display": 1000,
+      "amount_raw": "1000000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T11:09:00.000Z"
+    },
+    {
+      "intent_id": "PI-DP-009-2",
+      "invoice_id": "INV-DP-009",
+      "vendor_name": "ABC Cloud",
+      "recipient": "0x8888888888888888888888888888888888888888",
+      "amount_display": 1000,
+      "amount_raw": "1000000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T11:09:01.000Z"
+    }
+  ],
+  "expected_verdict": "DENY",
+  "expected_deny_reason": "DUPLICATE_PAYMENT",
+  "must_not_execute": true
+}

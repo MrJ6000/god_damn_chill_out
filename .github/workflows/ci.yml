@@ -1,4 +1,3 @@
-# ⚠️ 骨架版，M5 負責完成（見 M5 的 04_你的任務書.md 第四節）
 name: CI
 
 on:
@@ -11,11 +10,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
-      - run: pnpm -r test
-      # TODO(M5): - run: pnpm bench --offline
+      - name: Test workspace without chain credentials
+        run: pnpm --filter '!@pv/smart-account' -r test
+        env:
+          SESSION_KEY_APPROVAL: invalid-ci-fixture
+      - name: Test smart account with non-secret approval fixture
+        run: pnpm --filter @pv/smart-account test
+        env:
+          SESSION_KEY_APPROVAL: eyJwZXJtaXNzaW9uUGFyYW1zIjp7InBlcm1pc3Npb25JZCI6IjB4MDAifX0=
+      - run: pnpm bench --offline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: benchmark/benchmark-results.json
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge test -vv
+        working-directory: contracts

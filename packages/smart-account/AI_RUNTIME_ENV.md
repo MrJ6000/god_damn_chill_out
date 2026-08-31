@@ -16,6 +16,8 @@
 
 # 鏈與節點
 RPC_URL=https://sepolia.base.org
+# 選填：備援 RPC。未設定時預設 https://base-sepolia-rpc.publicnode.com
+RPC_URL_FALLBACK=https://base-sepolia-rpc.publicnode.com
 BUNDLER_RPC=<ZeroDev bundler RPC>
 PAYMASTER_RPC=<ZeroDev paymaster RPC>
 

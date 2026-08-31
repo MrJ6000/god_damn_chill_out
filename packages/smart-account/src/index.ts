@@ -33,6 +33,7 @@ import { toECDSASigner } from "@zerodev/permissions/signers";
 import { deserializePermissionAccount } from "@zerodev/permissions";
 import {
   http,
+  fallback,
   createPublicClient,
   createWalletClient,
   parseAbi,
@@ -46,6 +47,11 @@ import { baseSepolia } from "viem/chains";
 import type { PaymentIntent, ExecutionResult } from "@pv/shared";
 
 const RPC_URL = process.env.RPC_URL!;
+// 風險 4（Plan B 文件）：備援 RPC。主節點掛掉時 viem 會自動改打備援，
+// Demo 現場不需要停下來手改設定。
+const RPC_URL_FALLBACK =
+  process.env.RPC_URL_FALLBACK ?? "https://base-sepolia-rpc.publicnode.com";
+const rpcTransport = fallback([http(RPC_URL), http(RPC_URL_FALLBACK)]);
 const BUNDLER_RPC = process.env.BUNDLER_RPC!;
 const PAYMASTER_RPC = process.env.PAYMASTER_RPC!;
 const TREASURY_POLICY_MODULE = process.env.TREASURY_POLICY_MODULE! as `0x${string}`;
@@ -229,7 +235,7 @@ const KNOWN_RECIPIENT_CANDIDATES = (
 
 const publicClient = createPublicClient({
   chain: baseSepolia,
-  transport: http(RPC_URL),
+  transport: rpcTransport,
 });
 const entryPoint = getEntryPoint("0.7");
 
@@ -441,7 +447,7 @@ export async function executeRawTransferWithSessionKey(
   const walletClient = createWalletClient({
     account: aiAccount,
     chain: baseSepolia,
-    transport: http(RPC_URL),
+    transport: rpcTransport,
   });
   const invoiceHash = keccak256(toBytes(`RAW-BYPASS-${Date.now()}`));
   const data = encodeFunctionData({

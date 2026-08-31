@@ -108,3 +108,20 @@ UserOp 瀏覽器再補上。
   金額負數／0／小數／十六進位／uint256 溢位、Account 地址不一致、permissionId 解析。
 - ⚠️ GitHub CI 接線未做：依 `09_Schedule.md` Day 3，`.github/workflows/` 屬 M5 任務範圍，
   未擅自更動，已請 M2 轉知 M5。
+
+## 9/1 保命準備（11_Admin_And_PlanB.md 風險 4）
+
+- **收款人白名單補齊四家**（對應 `data/vendors.json` 的 VEN-001～004），
+  `readSessionPermission()` 現在回報 `authorized_recipient_count: 4`，
+  與 `07b_Demo_Numbers.md` 的 Demo 數字一致。
+- **Hacker 地址（幕三 Demo）**：`0x8888888888888888888888888888888888888888`。
+  文件上的 `0xHACKER8888…` 不是合法的十六進位位址，故改用此位址；
+  已確認不在白名單（`allowedRecipient` = false），且無人持有其私鑰。
+- **備援 RPC**：主節點 `https://sepolia.base.org`，
+  備援 `https://base-sepolia-rpc.publicnode.com`（可用 `RPC_URL_FALLBACK` 覆寫）。
+  以 viem 的 `fallback` 傳輸層串接，主節點失效時自動切換。
+  已實測：將主 RPC 改為無效位址後，`readSessionPermission()` 仍正常回傳。
+- **Gas 餘額**：Deployer / CFO Root / AI Session 各約 0.0002 ETH。
+  依實測 gas 價格（約 0.006 gwei），一次合約部署約 0.0000076 ETH，餘額充裕。
+  Demo 前一天需再確認一次。
+

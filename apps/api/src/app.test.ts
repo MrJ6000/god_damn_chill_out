@@ -20,7 +20,7 @@ import type { StoredPaymentRecord } from "./store.js";
 
 const fixtureDataDir = fileURLToPath(new URL("../../../data", import.meta.url));
 const fixedNow = new Date("2026-08-28T08:00:00.000Z");
-const attackerAddress = "0x1111111111111111111111111111111111111111";
+const attackerAddress = "0x8888888888888888888888888888888888888888";
 
 interface ApiSuccess<T> {
   ok: true;
@@ -272,9 +272,7 @@ describe("PolicyVault mock API contract", () => {
     );
     expect(maliciousInvoice).toBeDefined();
     const [intent] = await plan([maliciousInvoice as Invoice]);
-    expect(intent.recipient).toBe(
-      "0xHACKER8888888888888888888888888888888888",
-    );
+    expect(intent.recipient).toBe(attackerAddress);
 
     const result = await post<PolicyDecision>("/api/policy/evaluate", { intent });
     expect(result.body).toMatchObject({
@@ -969,6 +967,70 @@ describe("PolicyVault mock API contract", () => {
     }
   });
 
+  it("does not call the chain when the session permission ID is missing", async () => {
+    if (!dataDir) throw new Error("Missing test data directory");
+    const executeTransfer = vi.fn(async (intent: PaymentIntent) => ({
+      intent_id: intent.intent_id,
+      status: "EXECUTED" as const,
+      tx_hash: `0x${"a".repeat(64)}`,
+      executed_at: fixedNow.toISOString(),
+    }));
+    const realModeApp = createApp({
+      dataDir,
+      now: () => new Date(fixedNow),
+      mockAgent: true,
+      mockChain: false,
+      webOrigin: "http://localhost:3000",
+      smartAccountRuntime: {
+        sessionKeyOnly: true,
+        sessionPermissionId: undefined,
+        executeTransfer,
+      },
+      config: {
+        policyVersion: "V18",
+        maxPerTxDisplay: 5_000,
+        maxPer24hDisplay: 10_000,
+        sessionExpiresAt: "2026-09-07T23:59:00Z",
+        treasuryBalanceDisplay: 2_000_000,
+      },
+    });
+    const realModeServer = realModeApp.listen(0);
+    await new Promise<void>((resolve) =>
+      realModeServer.once("listening", resolve),
+    );
+    const address = realModeServer.address();
+    if (!address || typeof address === "string") {
+      realModeServer.close();
+      throw new Error("Missing real-mode test port");
+    }
+    const realModeUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const [intent] = await plan([(await invoices())[0]]);
+      const response = await fetch(`${realModeUrl}/api/payments/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intent,
+          decision: clientDecision(intent.intent_id),
+        }),
+      });
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        ok: false,
+        error: { code: "CHAIN_INTEGRATION_NOT_READY" },
+      });
+      expect(executeTransfer).not.toHaveBeenCalled();
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        realModeServer.close((error) =>
+          error ? reject(error) : resolve(),
+        ),
+      );
+    }
+  });
+
   it("handles confirmed and pending Smart Account operations", async () => {
     if (!dataDir) throw new Error("Missing test data directory");
     const invoiceList = await invoices();
@@ -1301,7 +1363,7 @@ describe("PolicyVault mock API contract", () => {
 
   it("validates direct-bypass recipients before a chain call", async () => {
     const result = await post<unknown>("/api/attack/direct-bypass", {
-      recipient: "0xHACKER8888888888888888888888888888888888",
+      recipient: "not-an-ethereum-address",
       amount_display: 4_800,
     });
     expect(result.response.status).toBe(400);

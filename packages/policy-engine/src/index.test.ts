@@ -3,6 +3,7 @@ import type { PaymentIntent, PolicyDecision, Vendor } from "@pv/shared";
 import { evaluate, type PolicyContext } from "./index.js";
 
 const NOW = new Date("2026-08-28T08:00:00.000Z");
+const ATTACKER_RECIPIENT = "0x8888888888888888888888888888888888888888";
 
 const knownVendor: Vendor = {
   vendor_id: "vendor-abc",
@@ -57,8 +58,8 @@ describe("evaluate", () => {
     expect(decision.deny_reasons).toEqual([]);
   });
 
-  it("denies a recipient replaced with 0xHACKER", () => {
-    const decision = evaluate(makeIntent({ recipient: "0xHACKER" }), makeContext());
+  it("denies a recipient replaced with the attacker wallet", () => {
+    const decision = evaluate(makeIntent({ recipient: ATTACKER_RECIPIENT }), makeContext());
 
     expect(decision.verdict).toBe("DENY");
     expect(decision.deny_reasons).toContain("BENEFICIARY_MISMATCH");
@@ -167,7 +168,7 @@ describe("evaluate", () => {
 
   it("collects every failure reason in rule order", () => {
     const decision = evaluate(
-      makeIntent({ recipient: "0xHACKER", amount_display: 5001 }),
+      makeIntent({ recipient: ATTACKER_RECIPIENT, amount_display: 5001 }),
       makeContext({
         allowedTokens: [],
         todaySpentDisplay: 9000,
@@ -218,7 +219,7 @@ describe("evaluate", () => {
 
   it("lets a denial override an approval review", () => {
     const decision = evaluate(
-      makeIntent({ recipient: "0xHACKER", amount_display: 2500 }),
+      makeIntent({ recipient: ATTACKER_RECIPIENT, amount_display: 2500 }),
       makeContext(),
     );
 

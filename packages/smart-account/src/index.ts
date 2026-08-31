@@ -60,7 +60,9 @@ const AI_SESSION_PRIVATE_KEY = process.env.AI_SESSION_PRIVATE_KEY! as `0x${strin
 const SMART_ACCOUNT_ADDRESS = process.env.SMART_ACCOUNT_ADDRESS! as `0x${string}`;
 // CFO Root 事先（離線）用 generate-session-approval 腳本產生的授權字串。
 // 這支檔案從頭到尾不會、也不能載入 CFO_ROOT_PRIVATE_KEY（P0-4 修復）。
-const SESSION_KEY_APPROVAL = process.env.SESSION_KEY_APPROVAL!;
+// 可能不存在（例如乾淨的 CI 環境）。缺少時不在載入階段爆炸，
+// 而是在真正要組帳戶／付款時才 fail-closed。
+const SESSION_KEY_APPROVAL = process.env.SESSION_KEY_APPROVAL;
 
 /**
  * Review #4：讓 M2 的 API 可以 fail-closed 驗證這個模組的執行模式。
@@ -99,8 +101,15 @@ export function readPermissionIdFromApproval(approval: string): string {
   return id;
 }
 
-/** 目前生效的權限設定識別碼（非秘密，可供 API 記錄與稽核）。 */
-export const sessionPermissionId = readPermissionIdFromApproval(SESSION_KEY_APPROVAL);
+/**
+ * 目前生效的權限設定識別碼（非秘密，可供 API 記錄與稽核）。
+ * 環境中沒有 approval 時為 undefined —— 這是為了讓沒有機密的環境
+ * （例如 CI）仍能 import 本模組並執行單元測試。
+ * 注意：字串存在但格式錯誤時仍會拋錯，不會靜靜吞掉。
+ */
+export const sessionPermissionId: string | undefined = SESSION_KEY_APPROVAL
+  ? readPermissionIdFromApproval(SESSION_KEY_APPROVAL)
+  : undefined;
 
 /**
  * Review #5：金額驗證抽成純函式，不需要網路或私鑰即可測試。
@@ -282,6 +291,13 @@ export function findRevertData(err: any): string | undefined {
 let cachedKernelClient: Awaited<ReturnType<typeof buildKernelClient>> | null = null;
 
 async function buildKernelClient() {
+  // Fail-closed：真正要動用資金的路徑上，approval 缺一不可。
+  if (!SESSION_KEY_APPROVAL) {
+    throw new Error(
+      "[smart-account] 拒絕執行：環境中缺少 SESSION_KEY_APPROVAL，無法重建受限帳戶。" +
+        "請依 packages/smart-account/AI_RUNTIME_ENV.md 設定 .env.ai-runtime。"
+    );
+  }
   const aiAccount = privateKeyToAccount(AI_SESSION_PRIVATE_KEY);
   const aiSessionSigner = await toECDSASigner({ signer: aiAccount });
 

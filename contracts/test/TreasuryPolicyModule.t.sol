@@ -127,7 +127,8 @@ contract TreasuryPolicyModuleTest is Test {
         module.aiTransfer(address(usdc), vendor, 5000 * 1e6, invD2);
         vm.stopPrank();
         // 完整跳過 24 小時之後，額度才會恢復（rolling window，不是等午夜）
-        vm.warp(block.timestamp + 1 days + 1);
+        // BUCKET_COUNT = 25：視窗為 24~25 小時，故需跨過 25 小時才釋放額度
+        vm.warp(block.timestamp + 25 hours + 1);
         vm.startPrank(aiSession);
         bool ok1 = module.aiTransfer(address(usdc), vendor, 5000 * 1e6, invE1);
         bool ok2 = module.aiTransfer(address(usdc), vendor, 5000 * 1e6, invE2);
@@ -270,6 +271,30 @@ contract TreasuryPolicyModuleTest is Test {
         vm.warp(block.timestamp + 25 hours);
         bool ok = module.aiTransfer(address(usdc), vendor, 1 * 1e6, keccak256("AFTER-WINDOW"));
         assertTrue(ok);
+        vm.stopPrank();
+    }
+
+    /// @dev Review #3（M2）：在桶尾把 24h 額度花滿後，經過 23 小時又 1 秒時
+    ///      桶號剛好前進 24 格。BUCKET_COUNT = 24 會在此刻提早釋放額度
+    ///      （不符合 Max per 24h），BUCKET_COUNT = 25 仍會擋下。
+    function testBucketTailNotReleasedBefore24h() public {
+        uint256 tail = ((block.timestamp / 1 hours) + 1) * 1 hours - 1;
+        vm.warp(tail);
+
+        vm.startPrank(aiSession);
+        for (uint256 i = 0; i < 5; i++) {
+            module.aiTransfer(address(usdc), vendor, 2000 * 1e6, keccak256(abi.encode("TAIL", i)));
+        }
+
+        vm.warp(tail + 23 hours + 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TreasuryPolicyModule.DailyLimitExceeded.selector,
+                DAILY_LIMIT + 1 * 1e6,
+                DAILY_LIMIT
+            )
+        );
+        module.aiTransfer(address(usdc), vendor, 1 * 1e6, keccak256("TAIL-23H"));
         vm.stopPrank();
     }
 }

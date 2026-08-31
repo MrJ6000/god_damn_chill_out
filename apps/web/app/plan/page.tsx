@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AddressChip } from "@/components/AddressChip";
+import { AgentActivity } from "@/components/AgentActivity";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { StatCard } from "@/components/StatCard";
 import { VerdictBadge } from "@/components/VerdictBadge";
@@ -24,6 +26,23 @@ function formatAmount(value: number): string {
 
 export default function PaymentPlanPage() {
   const router = useRouter();
+  const [isExecuting, setIsExecuting] = useState(false);
+  const navigationTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (navigationTimer.current !== null) {
+        window.clearTimeout(navigationTimer.current);
+      }
+    };
+  }, []);
+
+  function handleExecutePayments() {
+    if (isExecuting) return;
+
+    setIsExecuting(true);
+    navigationTimer.current = window.setTimeout(() => router.push("/receipt/PV-0001"), 1000);
+  }
 
   return (
     <main className="mx-auto w-[1120px] px-8 pb-16 pt-10">
@@ -96,14 +115,26 @@ export default function PaymentPlanPage() {
         </div>
       </section>
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-6 flex items-center justify-end gap-4">
+        {isExecuting ? (
+          <AgentActivity
+            className="w-[460px]"
+            detail="完成後會開啟付款安全憑證（示範資料）"
+            label="正在建立 16 筆模擬付款憑證"
+            mode="executing"
+          />
+        ) : null}
         <button
-          className="group inline-flex items-center gap-2 rounded-xl bg-pass px-7 py-3.5 text-sm font-bold text-[#04120d] hover:bg-[#34d399]"
-          onClick={() => router.push("/receipt/PV-0001")}
+          aria-busy={isExecuting}
+          aria-disabled={isExecuting}
+          className={`group inline-flex min-w-[220px] items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold text-[#04120d] ${
+            isExecuting ? "cursor-wait bg-[#6ee7b7]" : "bg-pass hover:bg-[#34d399]"
+          }`}
+          onClick={handleExecutePayments}
           type="button"
         >
-          執行 16 筆已通過付款
-          <AnimatedIcon className="h-4 w-4" morphTo="check" name="arrow-right" />
+          {isExecuting ? "正在建立憑證…" : "執行 16 筆已通過付款"}
+          <AnimatedIcon active={isExecuting} className="h-4 w-4" morphTo="check" name="arrow-right" />
         </button>
       </div>
     </main>

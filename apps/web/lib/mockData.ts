@@ -18,7 +18,7 @@ const VERIFIED_ADDRESSES = {
   "Kestrel Analytics": "0xDDD0000000000000000000000000000000000004",
 } as const;
 
-export const attackerAddress = "0xHACKER8888888888888888888888888888888888";
+export const attackerAddress = "0x8888888888888888888888888888888888888888";
 
 export const mockVendors: Vendor[] = Object.entries(VERIFIED_ADDRESSES).map(
   ([displayName, verifiedWallet], index) => ({

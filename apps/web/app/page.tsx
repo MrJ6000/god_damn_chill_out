@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AddressChip } from "@/components/AddressChip";
+import { AgentActivity } from "@/components/AgentActivity";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { StatCard } from "@/components/StatCard";
 import { mockInvoices } from "@/lib/mockData";
@@ -14,6 +16,23 @@ function formatAmount(value: number): string {
 
 export default function TreasuryInboxPage() {
   const router = useRouter();
+  const [isThinking, setIsThinking] = useState(false);
+  const navigationTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (navigationTimer.current !== null) {
+        window.clearTimeout(navigationTimer.current);
+      }
+    };
+  }, []);
+
+  function handleGeneratePlan() {
+    if (isThinking) return;
+
+    setIsThinking(true);
+    navigationTimer.current = window.setTimeout(() => router.push("/plan"), 1000);
+  }
 
   return (
     <main className="mx-auto w-[1120px] px-8 pb-16 pt-10">
@@ -89,22 +108,37 @@ export default function TreasuryInboxPage() {
       </section>
 
       <section className="mt-6 flex items-center gap-4 rounded-2xl border border-line bg-surface p-4">
-        <div className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#202025] text-body">
-          <AnimatedIcon className="h-6 w-6" morphTo="arrow-right" name="sparkles" />
-        </div>
-        <label className="sr-only" htmlFor="agent-instruction">AI 操作指令</label>
-        <input
-          id="agent-instruction"
-          className="h-12 flex-1 rounded-xl border border-line bg-ink px-4 text-base text-body"
-          defaultValue="處理今日已核准的付款。"
-        />
+        {isThinking ? (
+          <AgentActivity
+            className="flex-1"
+            detail="即將進入安全規則檢查"
+            label="AI 正在整理 18 筆付款提案"
+            mode="thinking"
+          />
+        ) : (
+          <>
+            <div className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#202025] text-body">
+              <AnimatedIcon className="h-6 w-6" morphTo="arrow-right" name="sparkles" />
+            </div>
+            <label className="sr-only" htmlFor="agent-instruction">AI 操作指令</label>
+            <input
+              id="agent-instruction"
+              className="h-12 flex-1 rounded-xl border border-line bg-ink px-4 text-base text-body"
+              defaultValue="處理今日已核准的付款。"
+            />
+          </>
+        )}
         <button
-          className="group inline-flex h-12 items-center gap-2 rounded-xl bg-body px-7 text-sm font-bold text-ink hover:bg-white"
-          onClick={() => router.push("/plan")}
+          aria-busy={isThinking}
+          aria-disabled={isThinking}
+          className={`group inline-flex h-12 min-w-[174px] items-center justify-center gap-2 rounded-xl px-7 text-sm font-bold text-ink ${
+            isThinking ? "cursor-wait bg-[#b9b9be]" : "bg-body hover:bg-white"
+          }`}
+          onClick={handleGeneratePlan}
           type="button"
         >
-          產生付款計畫
-          <AnimatedIcon className="h-4 w-4" morphTo="check" name="arrow-right" />
+          {isThinking ? "正在整理…" : "產生付款計畫"}
+          <AnimatedIcon active={isThinking} className="h-4 w-4" morphTo="check" name="arrow-right" />
         </button>
       </section>
     </main>

@@ -230,4 +230,46 @@ contract TreasuryPolicyModuleTest is Test {
         bytes32 approvalHash = keccak256(abi.encode(address(usdc), vendor, uint256(3000 * 1e6), inv));
         assertFalse(module.approvedInvoice(approvalHash));
     }
+
+    /// @dev Review #2：桶子式累計的成本有上界，不隨歷史筆數成長。
+    ///      舊的 append-only 陣列版本在這裡會線性變貴並讓斷言失敗。
+    function testSpamTransfersDoNotInflateGas() public {
+        vm.startPrank(aiSession);
+        uint256 g0 = gasleft();
+        module.aiTransfer(address(usdc), vendor, 1 * 1e6, keccak256("SPAM-FIRST"));
+        uint256 gasFirst = g0 - gasleft();
+
+        for (uint256 i = 0; i < 40; i++) {
+            module.aiTransfer(address(usdc), vendor, 1 * 1e6, keccak256(abi.encode("SPAM", i)));
+        }
+
+        uint256 g1 = gasleft();
+        module.aiTransfer(address(usdc), vendor, 1 * 1e6, keccak256("SPAM-LAST"));
+        uint256 gasLast = g1 - gasleft();
+        vm.stopPrank();
+
+        assertLt(gasLast, gasFirst + 5_000);
+    }
+
+    /// @dev Review #2：額度用滿後被擋；超過視窗長度後舊支出滑出視窗，可再付款。
+    function testBucketWindowSlidesAfterWindowPasses() public {
+        vm.startPrank(aiSession);
+        for (uint256 i = 0; i < 5; i++) {
+            module.aiTransfer(address(usdc), vendor, 2000 * 1e6, keccak256(abi.encode("FILL", i)));
+        }
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TreasuryPolicyModule.DailyLimitExceeded.selector,
+                DAILY_LIMIT + 1 * 1e6,
+                DAILY_LIMIT
+            )
+        );
+        module.aiTransfer(address(usdc), vendor, 1 * 1e6, keccak256("OVER"));
+
+        vm.warp(block.timestamp + 25 hours);
+        bool ok = module.aiTransfer(address(usdc), vendor, 1 * 1e6, keccak256("AFTER-WINDOW"));
+        assertTrue(ok);
+        vm.stopPrank();
+    }
 }

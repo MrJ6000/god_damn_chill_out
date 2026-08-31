@@ -24,15 +24,20 @@ contract TreasuryPolicyModule {
     uint256 public sessionExpiry;
     uint256 public policyVersion;
 
-    /// @dev Rolling-24h daily limit. Every successful transfer is appended
-    ///      here; `_spentInLast24h` sums only records younger than 24h, so
-    ///      spend does NOT reset at a fixed UTC midnight (that let an
-    ///      attacker double-spend across the calendar-day boundary).
-    struct TransferRecord {
-        uint256 timestamp;
-        uint256 amount;
-    }
-    TransferRecord[] public transferHistory;
+    /// @dev Rolling-24h daily limit, stored as fixed-size hourly buckets.
+    ///      Spend accumulates into bucketSpent[timestamp / BUCKET_DURATION];
+    ///      the window is the current bucket plus the previous 23.
+    ///      Spend still does NOT reset at a fixed UTC midnight (that let an
+    ///      attacker double-spend across the calendar-day boundary), but
+    ///      unlike an append-only history array the read cost is bounded at
+    ///      exactly BUCKET_COUNT slots, so a compromised session key cannot
+    ///      spam tiny transfers to make every later call unaffordably
+    ///      expensive (gas DoS).
+    ///      Trade-off: this is a sliding-window counter, so the effective
+    ///      window is between 23h and 24h rather than exactly 24h.
+    uint256 public constant BUCKET_DURATION = 1 hours;
+    uint256 public constant BUCKET_COUNT = 24;
+    mapping(uint256 => uint256) public bucketSpent;
 
     mapping(bytes32 => bool) public paidInvoice;       // invoiceHash => already paid
     /// @dev key = keccak256(abi.encode(token, recipient, amount, invoiceHash)).
@@ -140,17 +145,14 @@ contract TreasuryPolicyModule {
         emit InvoiceApproved(approvalHash, invoiceHash);
     }
 
-    /// @dev Sums transferHistory entries newer than (now - 24h). Entries are
-    ///      appended in increasing timestamp order, so we can walk backwards
-    ///      from the end and stop at the first entry that's aged out.
+    /// @dev Sums the current hourly bucket plus the previous BUCKET_COUNT - 1.
+    ///      Cost is fixed no matter how many transfers have ever occurred.
     function _spentInLast24h() internal view returns (uint256) {
-        uint256 windowStart = block.timestamp > 1 days ? block.timestamp - 1 days : 0;
+        uint256 currentBucket = block.timestamp / BUCKET_DURATION;
         uint256 sum = 0;
-        uint256 len = transferHistory.length;
-        for (uint256 i = len; i > 0; i--) {
-            TransferRecord storage rec = transferHistory[i - 1];
-            if (rec.timestamp < windowStart) break;
-            sum += rec.amount;
+        for (uint256 i = 0; i < BUCKET_COUNT; i++) {
+            if (currentBucket < i) break;
+            sum += bucketSpent[currentBucket - i];
         }
         return sum;
     }
@@ -177,7 +179,7 @@ contract TreasuryPolicyModule {
         uint256 attempted = spentRecently + amount;
         if (attempted > dailyLimit) revert DailyLimitExceeded(attempted, dailyLimit);
 
-        transferHistory.push(TransferRecord({timestamp: block.timestamp, amount: amount}));
+        bucketSpent[block.timestamp / BUCKET_DURATION] += amount;
         paidInvoice[invoiceHash] = true;
 
         bool ok = IERC20(token).transfer(to, amount);

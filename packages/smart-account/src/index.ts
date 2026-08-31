@@ -2,10 +2,26 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Review #3：本模組只允許在「AI runtime」環境執行。
+// 讀的是 .env.ai-runtime（刻意不含 CFO Root / Deployer 私鑰），
+// 而不是根目錄那份什麼都有的 .env。
 try {
-  process.loadEnvFile(path.resolve(__dirname, "../../../.env"));
+  process.loadEnvFile(path.resolve(__dirname, "../../../.env.ai-runtime"));
 } catch {
-  // 已經載入過，或呼叫端（M2 的 app）自己已經載入 .env 了，都沒關係
+  // 已經載入過，或呼叫端（M2 的 app）自己已經載入了，都沒關係
+}
+
+// Fail-closed：只要這個 process 的環境中出現特權私鑰，就代表載入了錯誤的
+// 環境檔（例如整份根目錄 .env）。此時直接拒絕啟動，不帶著特權金鑰運作。
+for (const forbidden of ["CFO_ROOT_PRIVATE_KEY", "DEPLOYER_PRIVATE_KEY"]) {
+  if (process.env[forbidden]) {
+    throw new Error(
+      `[smart-account] 拒絕啟動：process 環境中存在 ${forbidden}。` +
+        "AI runtime 只能載入 .env.ai-runtime。若是在終端機 source 過根目錄 .env，" +
+        "請改用乾淨的 shell，或以 env -u CFO_ROOT_PRIVATE_KEY -u DEPLOYER_PRIVATE_KEY <指令> 執行。"
+    );
+  }
 }
 
 import {
@@ -39,6 +55,165 @@ const SMART_ACCOUNT_ADDRESS = process.env.SMART_ACCOUNT_ADDRESS! as `0x${string}
 // CFO Root 事先（離線）用 generate-session-approval 腳本產生的授權字串。
 // 這支檔案從頭到尾不會、也不能載入 CFO_ROOT_PRIVATE_KEY（P0-4 修復）。
 const SESSION_KEY_APPROVAL = process.env.SESSION_KEY_APPROVAL!;
+
+/**
+ * Review #4：讓 M2 的 API 可以 fail-closed 驗證這個模組的執行模式。
+ * 這兩個匯出值都不含任何機密資訊。
+ */
+
+/**
+ * Review #1：用於「已送出但結果未確認」的狀態。
+ * shared 的 ExecutionResult.status 目前只有 EXECUTED / REJECTED / SKIPPED，
+ * 沒有能誠實表達「尚未確認」的值，而該型別由 M2 維護，本包不自行修改。
+ * 在 M2 加入 "PENDING" 之前暫時沿用 "REJECTED"，但一律附上 hash 與
+ * error_code = "RECEIPT_TIMEOUT"，讓呼叫端能區分「逾時未確認」與「確定被拒絕」。
+ * 合約端有 paidInvoice 重複付款保護，因此呼叫端即使據此重試同一張發票也不會重複付款。
+ * TODO(M2)：型別加入 "PENDING" 後，把下面這一行改成 "PENDING" 即可。
+ */
+const PENDING_STATUS: ExecutionResult["status"] = "REJECTED";
+
+/** 靜態宣告：本模組只會使用 AI Session Key，不會使用 CFO Root Key。 */
+export const sessionKeyOnly = true;
+
+/**
+ * 從 SESSION_KEY_APPROVAL 取出穩定、非秘密的 permissionId。
+ * 這個值由權限政策內容推導而來，可用來辨識「目前生效的是哪一組權限設定」。
+ * 解析失敗時直接拋錯（fail-closed），不回傳空值。
+ */
+export function readPermissionIdFromApproval(approval: string): string {
+  let decoded: any;
+  try {
+    decoded = JSON.parse(Buffer.from(approval, "base64").toString("utf-8"));
+  } catch {
+    throw new Error("SESSION_KEY_APPROVAL 無法解碼為 JSON，請重新產生 approval 字串。");
+  }
+  const id = decoded?.permissionParams?.permissionId;
+  if (typeof id !== "string" || !id.startsWith("0x")) {
+    throw new Error("SESSION_KEY_APPROVAL 中找不到 permissionParams.permissionId，請重新產生 approval 字串。");
+  }
+  return id;
+}
+
+/** 目前生效的權限設定識別碼（非秘密，可供 API 記錄與稽核）。 */
+export const sessionPermissionId = readPermissionIdFromApproval(SESSION_KEY_APPROVAL);
+
+/**
+ * Review #5：金額驗證抽成純函式，不需要網路或私鑰即可測試。
+ * 規則：只接受十進位非負整數字串；0 允許（合約未禁止），負數、小數、
+ * 十六進位、空字串、超過 uint256 上限一律拒絕。
+ */
+export type AmountValidation =
+  | { ok: true; value: bigint }
+  | { ok: false; error_code: string; error_message: string };
+
+const UINT256_MAX = (1n << 256n) - 1n;
+
+/** receipt 判讀所需的最小結構，讓單元測試可以餵假物件進來。 */
+export type UserOpReceiptLike = {
+  success: boolean;
+  reason?: string;
+  receipt: { transactionHash: string; blockNumber: bigint | number };
+};
+
+/**
+ * Review #5：把「拿到 receipt 之後怎麼判讀」抽成純函式。
+ * UserOp 被打包成功（外層交易 success）不等於內層呼叫成功，必須看 receipt.success。
+ */
+export function interpretUserOpReceipt(
+  receipt: UserOpReceiptLike,
+  ctx: { intent_id: string; user_op_hash: string; executed_at: string }
+): ExecutionResult {
+  const txHash = receipt.receipt.transactionHash;
+  const base = {
+    intent_id: ctx.intent_id,
+    tx_hash: txHash,
+    user_op_hash: ctx.user_op_hash,
+    block_number: Number(receipt.receipt.blockNumber),
+    explorer_url: `https://sepolia.basescan.org/tx/${txHash}`,
+    executed_at: ctx.executed_at,
+  };
+  if (!receipt.success) {
+    const reasonText = receipt.reason ?? "";
+    return {
+      ...base,
+      status: "REJECTED",
+      error_code: mapErrorCode(reasonText),
+      error_message:
+        reasonText || "UserOperation reverted on-chain (bundler tx succeeded, inner call failed)",
+    };
+  }
+  return { ...base, status: "EXECUTED" };
+}
+
+/**
+ * Review #1：已送出但等不到 receipt 時的結果。一定保留已取得的 hash，
+ * 並用 error_code = "RECEIPT_TIMEOUT" 表明「未確認」而非「已被拒絕」。
+ */
+export function buildReceiptTimeoutResult(ctx: {
+  intent_id: string;
+  executed_at: string;
+  user_op_hash?: string;
+  tx_hash?: string;
+  cause?: any;
+}): ExecutionResult {
+  const causeText =
+    ctx.cause?.shortMessage ?? ctx.cause?.message ?? (ctx.cause ? String(ctx.cause) : "");
+  const ref = ctx.tx_hash ?? ctx.user_op_hash ?? "(unknown)";
+  return {
+    intent_id: ctx.intent_id,
+    status: PENDING_STATUS,
+    ...(ctx.tx_hash
+      ? { tx_hash: ctx.tx_hash, explorer_url: `https://sepolia.basescan.org/tx/${ctx.tx_hash}` }
+      : {}),
+    ...(ctx.user_op_hash ? { user_op_hash: ctx.user_op_hash } : {}),
+    error_code: "RECEIPT_TIMEOUT",
+    error_message:
+      `等待 receipt 逾時：${ref} 已送出但結果尚未確認，仍可能成功。` +
+      `請以 hash 回鏈上查證。（原始錯誤：${causeText}）`,
+    executed_at: ctx.executed_at,
+  };
+}
+
+/**
+ * Fail-closed：由 approval 字串重建出的帳戶，必須就是環境檔登記的 Smart Account。
+ * 不一致通常代表 approval 與 .env 不同步（例如合約重新部署後忘了重新產生 approval），
+ * 這時寧可當場停下來，也不要從非預期的地址送出付款。
+ * 抽成純函式以便單元測試。
+ */
+export function assertExpectedAccount(
+  actual: string,
+  expected: string = SMART_ACCOUNT_ADDRESS
+): void {
+  if (actual.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error(
+      `[smart-account] 拒絕啟動：由 SESSION_KEY_APPROVAL 重建出的帳戶地址 ${actual} ` +
+        `與環境設定的 SMART_ACCOUNT_ADDRESS ${expected} 不一致。` +
+        "合約重新部署後請重新產生 approval 字串。"
+    );
+  }
+}
+
+export function validateAmount(amountRaw: string): AmountValidation {
+  const text = typeof amountRaw === "string" ? amountRaw.trim() : "";
+  if (!/^[0-9]+$/.test(text)) {
+    return {
+      ok: false,
+      error_code: "INVALID_AMOUNT",
+      error_message: `"${amountRaw}" is not a valid non-negative integer amount; nothing was broadcast on-chain`,
+    };
+  }
+  const value = BigInt(text);
+  if (value > UINT256_MAX) {
+    return {
+      ok: false,
+      error_code: "AMOUNT_OVERFLOW",
+      error_message: `"${amountRaw}" exceeds uint256 range; nothing was broadcast on-chain`,
+    };
+  }
+  return { ok: true, value };
+}
+
+
 
 // 目前白名單裡的收款人候選清單（Root 手動維護；用來實際上鏈核對算出人數）
 const KNOWN_RECIPIENT_CANDIDATES = (
@@ -109,6 +284,7 @@ async function buildKernelClient() {
     SESSION_KEY_APPROVAL,
     aiSessionSigner
   );
+  assertExpectedAccount(account.address);
 
   const kernelPaymaster = createZeroDevPaymasterClient({
     chain: baseSepolia,
@@ -138,6 +314,29 @@ async function getKernelClient() {
 // 1. 正常執行（M2 在政策 ALLOW 後呼叫）
 export async function executeTransfer(intent: PaymentIntent): Promise<ExecutionResult> {
   const executed_at = new Date().toISOString();
+
+  // Review #5：送上鏈之前先驗證輸入。還沒廣播就失敗的，一律 SKIPPED，
+  // 不能謊稱是鏈上拒絕（REJECTED）。
+  if (!isAddress(intent.recipient, { strict: false })) {
+    return {
+      intent_id: intent.intent_id,
+      status: "SKIPPED",
+      error_code: "INVALID_ADDRESS",
+      error_message: `"${intent.recipient}" is not a valid 20-byte EVM address; nothing was broadcast on-chain`,
+      executed_at,
+    };
+  }
+  const amountCheck = validateAmount(intent.amount_raw);
+  if (!amountCheck.ok) {
+    return {
+      intent_id: intent.intent_id,
+      status: "SKIPPED",
+      error_code: amountCheck.error_code,
+      error_message: amountCheck.error_message,
+      executed_at,
+    };
+  }
+
   try {
     const { account, kernelClient } = await getKernelClient();
     const invoiceHash = keccak256(toBytes(intent.invoice_id));
@@ -149,40 +348,34 @@ export async function executeTransfer(intent: PaymentIntent): Promise<ExecutionR
         data: encodeFunctionData({
           abi: treasuryAbi,
           functionName: "aiTransfer",
-          args: [USDC_ADDRESS, intent.recipient as `0x${string}`, BigInt(intent.amount_raw), invoiceHash],
+          args: [USDC_ADDRESS, intent.recipient as `0x${string}`, amountCheck.value, invoiceHash],
         }),
       },
     ]);
 
     const userOpHash = await kernelClient.sendUserOperation({ callData });
-    const receipt = await kernelClient.waitForUserOperationReceipt({ hash: userOpHash });
 
-    if (!receipt.success) {
-      // UserOp 真的送上鏈、被打包了，但合約內部執行失敗——
-      // 不能只因為「有拿到 receipt」就當作執行成功（P0-1 修復）
-      const reasonText = (receipt as any).reason ?? "";
-      return {
+    // Review #1：UserOp 已經送出去了。從這一刻起，任何等待失敗都不能謊稱
+    // 「沒送出」或「已被拒絕」，而且必須把 hash 留下來，讓呼叫端可以事後
+    // 自己回鏈上查證真正的結果。
+    let receipt: Awaited<ReturnType<typeof kernelClient.waitForUserOperationReceipt>>;
+    try {
+      receipt = await kernelClient.waitForUserOperationReceipt({ hash: userOpHash });
+    } catch (waitErr: any) {
+      return buildReceiptTimeoutResult({
         intent_id: intent.intent_id,
-        status: "REJECTED",
-        tx_hash: receipt.receipt.transactionHash,
-        user_op_hash: userOpHash,
-        block_number: Number(receipt.receipt.blockNumber),
-        explorer_url: `https://sepolia.basescan.org/tx/${receipt.receipt.transactionHash}`,
-        error_code: mapErrorCode(reasonText),
-        error_message: reasonText || "UserOperation reverted on-chain (bundler tx succeeded, inner call failed)",
         executed_at,
-      };
+        user_op_hash: userOpHash,
+        cause: waitErr,
+      });
     }
 
-    return {
+    // Review #5：receipt 判讀抽成純函式，成功／失敗兩種情況都能單元測試。
+    return interpretUserOpReceipt(receipt, {
       intent_id: intent.intent_id,
-      status: "EXECUTED",
-      tx_hash: receipt.receipt.transactionHash,
       user_op_hash: userOpHash,
-      block_number: Number(receipt.receipt.blockNumber),
-      explorer_url: `https://sepolia.basescan.org/tx/${receipt.receipt.transactionHash}`,
       executed_at,
-    };
+    });
   } catch (err: any) {
     const revertData = findRevertData(err);
     const text = revertData ?? `${err?.shortMessage ?? ""} ${err?.message ?? ""} ${err?.details ?? ""}`;
@@ -214,18 +407,17 @@ export async function executeRawTransferWithSessionKey(
       executed_at,
     };
   }
-  let amountBig: bigint;
-  try {
-    amountBig = BigInt(amountRaw);
-  } catch {
+  const amountCheck = validateAmount(amountRaw);
+  if (!amountCheck.ok) {
     return {
       intent_id,
       status: "SKIPPED",
-      error_code: "INVALID_AMOUNT",
-      error_message: `"${amountRaw}" is not a valid integer amount; nothing was broadcast on-chain`,
+      error_code: amountCheck.error_code,
+      error_message: amountCheck.error_message,
       executed_at,
     };
   }
+  const amountBig = amountCheck.value;
 
   const aiAccount = privateKeyToAccount(AI_SESSION_PRIVATE_KEY);
   const walletClient = createWalletClient({
@@ -295,13 +487,14 @@ export async function executeRawTransferWithSessionKey(
       executed_at,
     };
   } catch (err: any) {
-    return {
+    // Review #1：交易已經廣播出去（txHash 存在），等待回執失敗時不能謊稱
+    // SKIPPED（宣稱沒送出），也不能謊稱 REJECTED（宣稱被鏈上拒絕）。保留 hash。
+    return buildReceiptTimeoutResult({
       intent_id,
-      status: "SKIPPED",
-      error_code: "RPC_ERROR",
-      error_message: err?.shortMessage ?? err?.message ?? String(err),
       executed_at,
-    };
+      tx_hash: txHash,
+      cause: err,
+    });
   }
 }
 

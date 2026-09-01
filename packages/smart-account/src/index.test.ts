@@ -334,3 +334,140 @@ describe("PENDING status (shared 型別已支援)", () => {
     expect(r.error_code).toBe("RECEIPT_TIMEOUT");
   });
 });
+
+
+import { validateChainRuntimeConfig } from "./index.js";
+import { KERNEL_INIT_CODE_FIXTURE } from "./test-fixtures.js";
+
+const FIXTURE_ACCOUNT = "0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F";
+const FIXTURE_TREASURY = "0x29d31dB1A9f694181a2793288aa6903a434E1F55";
+
+/** 組出一份結構完全合法的 approval（不含任何機密）。 */
+function buildApproval(overrides: Record<string, unknown> = {}): string {
+  const approval = {
+    permissionParams: {
+      permissionId: "0xabcd1234",
+      policies: [
+        {
+          policyParams: {
+            type: "call",
+            policyVersion: "0.0.4",
+            policyFlag: "0x0000",
+            permissions: [
+              {
+                functionName: "aiTransfer",
+                selector: "0xd4eb9b1e",
+                callType: "0x00",
+                valueLimit: "0",
+                rules: [],
+                target: FIXTURE_TREASURY,
+                abi: [
+                  {
+                    type: "function",
+                    name: "aiTransfer",
+                    inputs: [
+                      { type: "address" },
+                      { type: "address" },
+                      { type: "uint256" },
+                      { type: "bytes32" },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    },
+    action: {
+      address: "0x0000000000000000000000000000000000000000",
+      selector: "0xe9ae5c53",
+    },
+    validityData: { validAfter: 0, validUntil: 0 },
+    accountParams: {
+      accountAddress: FIXTURE_ACCOUNT,
+      initCode: KERNEL_INIT_CODE_FIXTURE,
+    },
+    enableSignature: "0xabcd",
+    isPreInstalled: false,
+    ...overrides,
+  };
+  return Buffer.from(JSON.stringify(approval)).toString("base64");
+}
+
+function validConfig(overrides: Record<string, string | undefined> = {}) {
+  return {
+    RPC_URL: "https://example.invalid/rpc",
+    BUNDLER_RPC: "https://example.invalid/bundler",
+    PAYMASTER_RPC: "https://example.invalid/paymaster",
+    TREASURY_POLICY_MODULE: FIXTURE_TREASURY,
+    USDC_ADDRESS: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    AI_SESSION_PRIVATE_KEY: "0x" + "1".repeat(64),
+    SMART_ACCOUNT_ADDRESS: FIXTURE_ACCOUNT,
+    SESSION_KEY_APPROVAL: buildApproval(),
+    ...overrides,
+  };
+}
+
+describe("validateChainRuntimeConfig", () => {
+  // 沒有這一項，下面所有「應為 false」的測試就算函式永遠回傳 false 也會過
+  it("accepts a fully valid configuration", () => {
+    expect(validateChainRuntimeConfig(validConfig())).toBe(true);
+  });
+
+  it("rejects the configuration when any required key is missing", () => {
+    const keys = [
+      "RPC_URL",
+      "BUNDLER_RPC",
+      "PAYMASTER_RPC",
+      "TREASURY_POLICY_MODULE",
+      "USDC_ADDRESS",
+      "AI_SESSION_PRIVATE_KEY",
+      "SMART_ACCOUNT_ADDRESS",
+      "SESSION_KEY_APPROVAL",
+    ];
+    for (const key of keys) {
+      expect(validateChainRuntimeConfig(validConfig({ [key]: undefined }))).toBe(false);
+    }
+  });
+
+  it("rejects a non-http RPC endpoint", () => {
+    expect(validateChainRuntimeConfig(validConfig({ BUNDLER_RPC: "ws://example.invalid" }))).toBe(false);
+  });
+
+  it("rejects an untrimmed URL", () => {
+    expect(validateChainRuntimeConfig(validConfig({ RPC_URL: " https://example.invalid " }))).toBe(false);
+  });
+
+  it("rejects the zero address", () => {
+    expect(
+      validateChainRuntimeConfig(
+        validConfig({ USDC_ADDRESS: "0x0000000000000000000000000000000000000000" })
+      )
+    ).toBe(false);
+  });
+
+  it("rejects a malformed session private key", () => {
+    expect(validateChainRuntimeConfig(validConfig({ AI_SESSION_PRIVATE_KEY: "0xtooshort" }))).toBe(false);
+  });
+
+  it("rejects an undecodable approval", () => {
+    expect(validateChainRuntimeConfig(validConfig({ SESSION_KEY_APPROVAL: "zzzz" }))).toBe(false);
+  });
+
+  it("rejects an approval whose account does not match SMART_ACCOUNT_ADDRESS", () => {
+    expect(
+      validateChainRuntimeConfig(
+        validConfig({ SMART_ACCOUNT_ADDRESS: "0x1111111111111111111111111111111111111111" })
+      )
+    ).toBe(false);
+  });
+
+  it("rejects when the policy module is not among the approval call targets", () => {
+    expect(
+      validateChainRuntimeConfig(
+        validConfig({ TREASURY_POLICY_MODULE: "0x2222222222222222222222222222222222222222" })
+      )
+    ).toBe(false);
+  });
+});

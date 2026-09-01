@@ -20,7 +20,7 @@ import type { StoredPaymentRecord } from "./store.js";
 
 const fixtureDataDir = fileURLToPath(new URL("../../../data", import.meta.url));
 const fixedNow = new Date("2026-08-28T08:00:00.000Z");
-const attackerAddress = "0x1111111111111111111111111111111111111111";
+const attackerAddress = "0x8888888888888888888888888888888888888888";
 
 interface ApiSuccess<T> {
   ok: true;
@@ -272,9 +272,7 @@ describe("PolicyVault mock API contract", () => {
     );
     expect(maliciousInvoice).toBeDefined();
     const [intent] = await plan([maliciousInvoice as Invoice]);
-    expect(intent.recipient).toBe(
-      "0xHACKER8888888888888888888888888888888888",
-    );
+    expect(intent.recipient).toBe(attackerAddress);
 
     const result = await post<PolicyDecision>("/api/policy/evaluate", { intent });
     expect(result.body).toMatchObject({
@@ -713,6 +711,11 @@ describe("PolicyVault mock API contract", () => {
 
   it("keeps mock payment records isolated from real-chain mode", async () => {
     if (!dataDir) throw new Error("Missing test data directory");
+    const unavailableExecuteTransfer = vi.fn(
+      async (_intent: PaymentIntent) => {
+        throw new Error("An unavailable chain runtime must not be called.");
+      },
+    );
     const [intent] = await plan([(await invoices())[0]]);
     const payload = {
       intent,
@@ -753,6 +756,12 @@ describe("PolicyVault mock API contract", () => {
       mockAgent: true,
       mockChain: false,
       webOrigin: "http://localhost:3000",
+      smartAccountRuntime: {
+        sessionKeyOnly: true,
+        sessionPermissionId: "ZERODEV-PERMISSION-UNAVAILABLE",
+        chainRuntimeReady: () => false,
+        executeTransfer: unavailableExecuteTransfer,
+      },
       config: {
         policyVersion: "V18",
         maxPerTxDisplay: 5_000,
@@ -801,6 +810,7 @@ describe("PolicyVault mock API contract", () => {
         ok: false,
         error: { code: "CHAIN_INTEGRATION_NOT_READY" },
       });
+      expect(unavailableExecuteTransfer).not.toHaveBeenCalled();
 
       const realReceipts = await fetch(`${realChainUrl}/api/receipts`);
       expect(await realReceipts.json()).toMatchObject({
@@ -874,6 +884,18 @@ describe("PolicyVault mock API contract", () => {
   it("fails closed when real agent and chain integrations are requested but unavailable", async () => {
     if (!dataDir) throw new Error("Missing test data directory");
     let unavailableAgentCalled = false;
+    const unavailableExecuteTransfer = vi.fn(
+      async (_intent: PaymentIntent) => {
+        throw new Error("An unavailable chain runtime must not be called.");
+      },
+    );
+    const unavailableExecuteRawTransferWithSessionKey = vi.fn(
+      async (_recipient: string, _amountRaw: string) => {
+        throw new Error(
+          "An unavailable direct-bypass runtime must not be called.",
+        );
+      },
+    );
     const realModeApp = createApp({
       dataDir,
       now: () => new Date(fixedNow),
@@ -888,6 +910,14 @@ describe("PolicyVault mock API contract", () => {
           unavailableAgentCalled = true;
           throw new Error("An unconfigured Agent must not be called.");
         },
+      },
+      smartAccountRuntime: {
+        sessionKeyOnly: true,
+        sessionPermissionId: "ZERODEV-PERMISSION-UNAVAILABLE",
+        chainRuntimeReady: () => false,
+        executeTransfer: unavailableExecuteTransfer,
+        executeRawTransferWithSessionKey:
+          unavailableExecuteRawTransferWithSessionKey,
       },
       config: {
         policyVersion: "V18",
@@ -925,7 +955,13 @@ describe("PolicyVault mock API contract", () => {
       });
       expect(unavailableAgentCalled).toBe(false);
 
-      const [normalIntent] = await plan([invoiceList[0]]);
+      const reviewInvoice = invoiceList.find(
+        (invoice) => invoice.invoice_id === "INV-8817",
+      ) as Invoice;
+      const [normalIntent, reviewIntent] = await plan([
+        invoiceList[0],
+        reviewInvoice,
+      ]);
       const executeResponse = await fetch(
         `${realModeUrl}/api/payments/execute`,
         {
@@ -939,6 +975,49 @@ describe("PolicyVault mock API contract", () => {
       );
       expect(executeResponse.status).toBe(503);
       expect(await executeResponse.json()).toMatchObject({
+        ok: false,
+        error: { code: "CHAIN_INTEGRATION_NOT_READY" },
+      });
+
+      const reviewResponse = await fetch(
+        `${realModeUrl}/api/payments/execute`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            intent: reviewIntent,
+            decision: clientDecision(reviewIntent.intent_id),
+          }),
+        },
+      );
+      expect(reviewResponse.status).toBe(200);
+      const reviewBody = (await reviewResponse.json()) as
+        | ApiSuccess<{
+            receipt: {
+              payment_id: string;
+              policy_verdict: string;
+              human_approval: string;
+            };
+          }>
+        | ApiFailure;
+      expect(reviewBody).toMatchObject({
+        ok: true,
+        data: {
+          receipt: { policy_verdict: "REVIEW", human_approval: "PENDING" },
+        },
+      });
+      if (!reviewBody.ok) throw new Error(reviewBody.error.message);
+
+      const approvalResponse = await fetch(
+        `${realModeUrl}/api/approvals/${reviewIntent.intent_id}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approve: true }),
+        },
+      );
+      expect(approvalResponse.status).toBe(503);
+      expect(await approvalResponse.json()).toMatchObject({
         ok: false,
         error: { code: "CHAIN_INTEGRATION_NOT_READY" },
       });
@@ -960,11 +1039,90 @@ describe("PolicyVault mock API contract", () => {
         error: { code: "CHAIN_INTEGRATION_NOT_READY" },
       });
 
-      const receipts = await get<unknown[]>("/api/receipts");
-      expect(receipts.body.ok && receipts.body.data).toHaveLength(0);
+      const pendingReceipt = await fetch(
+        `${realModeUrl}/api/receipts/${reviewBody.data.receipt.payment_id}`,
+      );
+      expect(pendingReceipt.status).toBe(200);
+      expect(await pendingReceipt.json()).toMatchObject({
+        ok: true,
+        data: {
+          policy_verdict: "REVIEW",
+          human_approval: "PENDING",
+          execution: { status: "SKIPPED" },
+        },
+      });
+      expect(unavailableExecuteTransfer).not.toHaveBeenCalled();
+      expect(
+        unavailableExecuteRawTransferWithSessionKey,
+      ).not.toHaveBeenCalled();
     } finally {
       await new Promise<void>((resolve, reject) =>
         realModeServer.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it("does not call the chain when the session permission ID is missing", async () => {
+    if (!dataDir) throw new Error("Missing test data directory");
+    const executeTransfer = vi.fn(async (intent: PaymentIntent) => ({
+      intent_id: intent.intent_id,
+      status: "EXECUTED" as const,
+      tx_hash: `0x${"a".repeat(64)}`,
+      executed_at: fixedNow.toISOString(),
+    }));
+    const realModeApp = createApp({
+      dataDir,
+      now: () => new Date(fixedNow),
+      mockAgent: true,
+      mockChain: false,
+      webOrigin: "http://localhost:3000",
+      smartAccountRuntime: {
+        sessionKeyOnly: true,
+        sessionPermissionId: undefined,
+        chainRuntimeReady: () => true,
+        executeTransfer,
+      },
+      config: {
+        policyVersion: "V18",
+        maxPerTxDisplay: 5_000,
+        maxPer24hDisplay: 10_000,
+        sessionExpiresAt: "2026-09-07T23:59:00Z",
+        treasuryBalanceDisplay: 2_000_000,
+      },
+    });
+    const realModeServer = realModeApp.listen(0);
+    await new Promise<void>((resolve) =>
+      realModeServer.once("listening", resolve),
+    );
+    const address = realModeServer.address();
+    if (!address || typeof address === "string") {
+      realModeServer.close();
+      throw new Error("Missing real-mode test port");
+    }
+    const realModeUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const [intent] = await plan([(await invoices())[0]]);
+      const response = await fetch(`${realModeUrl}/api/payments/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intent,
+          decision: clientDecision(intent.intent_id),
+        }),
+      });
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        ok: false,
+        error: { code: "CHAIN_INTEGRATION_NOT_READY" },
+      });
+      expect(executeTransfer).not.toHaveBeenCalled();
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        realModeServer.close((error) =>
+          error ? reject(error) : resolve(),
+        ),
       );
     }
   });
@@ -1082,6 +1240,7 @@ describe("PolicyVault mock API contract", () => {
       smartAccountRuntime: {
         sessionKeyOnly: true,
         sessionPermissionId: "ZERODEV-PERMISSION-TEST",
+        chainRuntimeReady: () => true,
         executeTransfer,
         executeRawTransferWithSessionKey,
         readSessionPermission,
@@ -1301,7 +1460,7 @@ describe("PolicyVault mock API contract", () => {
 
   it("validates direct-bypass recipients before a chain call", async () => {
     const result = await post<unknown>("/api/attack/direct-bypass", {
-      recipient: "0xHACKER8888888888888888888888888888888888",
+      recipient: "not-an-ethereum-address",
       amount_display: 4_800,
     });
     expect(result.response.status).toBe(400);

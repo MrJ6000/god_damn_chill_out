@@ -7,7 +7,24 @@
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "dev-test": "tsx src/dev-test.ts",
+    "session-address": "tsx src/session-account-address.ts",
+    "session-transfer": "tsx src/session-transfer-test.ts",
+    "reject-whitelist": "tsx src/session-reject-whitelist.ts",
+    "smoke-test": "tsx src/index.smoke-test.ts",
+    "generate-approval": "tsx src/generate-session-approval.ts",
+    "cfo-approve": "tsx src/cfo-approve-invoice.ts"
   },
-  "dependencies": { "@pv/shared": "workspace:*" }
+  "dependencies": {
+    "@pv/shared": "workspace:*",
+    "@zerodev/ecdsa-validator": "^5.4.9",
+    "@zerodev/permissions": "^5.6.3",
+    "@zerodev/sdk": "^5.5.10",
+    "viem": "^2.56.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "tslib": "^2.8.1"
+  }
 }

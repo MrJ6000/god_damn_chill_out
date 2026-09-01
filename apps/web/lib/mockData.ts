@@ -18,7 +18,7 @@ const VERIFIED_ADDRESSES = {
   "Kestrel Analytics": "0xDDD0000000000000000000000000000000000004",
 } as const;
 
-export const attackerAddress = "0xHACKER8888888888888888888888888888888888";
+export const attackerAddress = "0x8888888888888888888888888888888888888888";
 
 export const mockVendors: Vendor[] = Object.entries(VERIFIED_ADDRESSES).map(
   ([displayName, verifiedWallet], index) => ({
@@ -190,16 +190,83 @@ export const mockPlan = {
 
 export const mockDirectBypass: ExecutionResult = {
   intent_id: "PI-DIRECT-BYPASS",
-  status: "REJECTED",
-  error_code: "MOCK_POLICY_MODULE_DENIED",
-  error_message: "模擬備援：未授權收款地址會被鏈上規則拒絕。",
+  status: "SKIPPED",
+  error_code: "MOCK_CHAIN",
+  error_message: "前端備援示意：未送出鏈上交易，僅展示未授權地址應被規則拒絕的情境。",
   executed_at: MOCK_NOW,
 };
 
-export function findMockDecision(intentId: string): PolicyDecision {
-  return mockDecisions.find((decision) => decision.intent_id === intentId) ?? mockDecisions.at(-1)!;
+export function findMockIntent(intentId: string): PaymentIntent | undefined {
+  return mockIntents.find((intent) => intent.intent_id === intentId);
 }
 
-export function findMockReceipt(paymentId: string): PolicyReceipt {
-  return mockReceipts.find((receipt) => receipt.payment_id === paymentId) ?? mockReceipts[0];
+export function findMockDecision(intentId: string): PolicyDecision | undefined {
+  return mockDecisions.find((decision) => decision.intent_id === intentId);
+}
+
+export function findMockReceipt(paymentId: string): PolicyReceipt | undefined {
+  return mockReceipts.find((receipt) => receipt.payment_id === paymentId);
+}
+
+export function createMockDecisionForIntent(intent: PaymentIntent): PolicyDecision {
+  const templateIndex = mockIntents.findIndex((candidate) => candidate.invoice_id === intent.invoice_id);
+  const template = mockDecisions[templateIndex];
+
+  if (!template) {
+    throw new Error(`找不到 ${intent.invoice_id} 的前端備援政策判定。`);
+  }
+
+  return {
+    ...template,
+    intent_id: intent.intent_id,
+  };
+}
+
+export function createMockPaymentOutcome(
+  intent: PaymentIntent,
+  decision: PolicyDecision,
+): { execution: ExecutionResult; receipt: PolicyReceipt } {
+  const templateIndex = mockIntents.findIndex((candidate) => candidate.invoice_id === intent.invoice_id);
+  const templateReceipt = mockReceipts[templateIndex];
+  const vendor = mockVendors.find((candidate) => candidate.display_name === intent.vendor_name);
+
+  if (!templateReceipt) {
+    throw new Error(`找不到 ${intent.invoice_id} 的前端備援付款憑證。`);
+  }
+
+  const execution: ExecutionResult = decision.verdict === "ALLOW"
+    ? {
+        intent_id: intent.intent_id,
+        status: "EXECUTED",
+        tx_hash: `0x${String(templateIndex + 1).padStart(64, "0")}`,
+        error_code: "MOCK_CHAIN",
+        error_message: "前端備援示意：未送出任何鏈上交易。",
+        executed_at: MOCK_NOW,
+      }
+    : {
+        intent_id: intent.intent_id,
+        status: "SKIPPED",
+        error_code: decision.verdict === "DENY" ? "POLICY_DENIED" : "POLICY_REVIEW_REQUIRED",
+        error_message: "前端備援示意：政策未允許送出交易。",
+        executed_at: MOCK_NOW,
+      };
+
+  return {
+    execution,
+    receipt: {
+      ...templateReceipt,
+      input_hash: templateReceipt.input_hash,
+      invoice_id: intent.invoice_id,
+      vendor_name: intent.vendor_name,
+      verified_recipient: vendor?.verified_wallet ?? templateReceipt.verified_recipient,
+      agent_proposed_recipient: intent.recipient,
+      amount_display: intent.amount_display,
+      policy_version: decision.policy_version,
+      policy_verdict: decision.verdict,
+      deny_reasons: decision.deny_reasons,
+      human_approval: decision.verdict === "REVIEW" ? "PENDING" : "NOT_REQUIRED",
+      execution,
+      funds_moved_display: execution.status === "EXECUTED" ? intent.amount_display : 0,
+    },
+  };
 }

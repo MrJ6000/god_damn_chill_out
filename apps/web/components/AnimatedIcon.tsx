@@ -109,26 +109,33 @@ export function AnimatedIcon({ active = false, className = "h-5 w-5", label, mor
     : "scale-75 rotate-12 opacity-0 group-hover:scale-100 group-hover:rotate-0 group-hover:opacity-100";
 
   return (
-    <svg
-      aria-hidden={label ? undefined : true}
-      aria-label={label}
-      className={className}
-      fill="none"
-      role={label ? "img" : undefined}
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
+    <span
+      className={`animated-icon ${morphTo ? "animated-icon--morph" : ""} ${
+        active ? "animated-icon--active" : ""
+      } ${className}`}
     >
-      <g className={`origin-center transition-all duration-200 ease-out motion-reduce:transition-none ${morphTo ? primaryState : ""}`}>
-        {iconShapes[name]}
-      </g>
-      {morphTo ? (
-        <g className={`origin-center transition-all duration-200 ease-out motion-reduce:transition-none ${secondaryState}`}>
-          {iconShapes[morphTo]}
+      {morphTo ? <span aria-hidden="true" className="animated-icon__halo" /> : null}
+      <svg
+        aria-hidden={label ? undefined : true}
+        aria-label={label}
+        className="relative z-[1] h-full w-full"
+        fill="none"
+        role={label ? "img" : undefined}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+        viewBox="0 0 24 24"
+      >
+        <g className={`origin-center transition-all duration-200 ease-out motion-reduce:transition-none ${morphTo ? primaryState : ""}`}>
+          {iconShapes[name]}
         </g>
-      ) : null}
-    </svg>
+        {morphTo ? (
+          <g className={`origin-center transition-all duration-200 ease-out motion-reduce:transition-none ${secondaryState}`}>
+            {iconShapes[morphTo]}
+          </g>
+        ) : null}
+      </svg>
+    </span>
   );
 }

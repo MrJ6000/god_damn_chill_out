@@ -26,17 +26,22 @@ contract TreasuryPolicyModule {
 
     /// @dev Rolling-24h daily limit, stored as fixed-size hourly buckets.
     ///      Spend accumulates into bucketSpent[timestamp / BUCKET_DURATION];
-    ///      the window is the current bucket plus the previous 23.
+    ///      the window is the current bucket plus the previous 24
+    ///      (BUCKET_COUNT - 1).
     ///      Spend still does NOT reset at a fixed UTC midnight (that let an
     ///      attacker double-spend across the calendar-day boundary), but
     ///      unlike an append-only history array the read cost is bounded at
     ///      exactly BUCKET_COUNT slots, so a compromised session key cannot
     ///      spam tiny transfers to make every later call unaffordably
     ///      expensive (gas DoS).
-    ///      Trade-off: this is a sliding-window counter, so the effective
-    ///      window is between 23h and 24h rather than exactly 24h.
+    ///      BUCKET_COUNT is 25, not 24, on purpose: with 24 buckets a spend
+    ///      landing at the very end of a bucket would be released again after
+    ///      only ~23h, which is less than the advertised 24h cap. With 25 the
+    ///      effective window is 24h-25h, i.e. never shorter than promised.
+    ///      Trade-off: the window can hold spend for up to an extra hour,
+    ///      which is the conservative direction for a spending limit.
     uint256 public constant BUCKET_DURATION = 1 hours;
-    uint256 public constant BUCKET_COUNT = 24;
+    uint256 public constant BUCKET_COUNT = 25;
     mapping(uint256 => uint256) public bucketSpent;
 
     mapping(bytes32 => bool) public paidInvoice;       // invoiceHash => already paid

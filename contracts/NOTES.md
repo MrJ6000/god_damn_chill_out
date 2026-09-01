@@ -24,7 +24,7 @@ forge script script/Deploy.s.sol \
 
 | 項目 | 位址 |
 |---|---|
-| TreasuryPolicyModule | 0x7404162b0197Fd187467D4EA59b1Cb4AA761033F |
+| TreasuryPolicyModule | 0x29d31dB1A9f694181a2793288aa6903a434E1F55 |
 | Smart Account | 0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F |
 | USDC (Base Sepolia) | 0x036CbD53842c5426634e7929541eC2318f3dCF7e |
 | CFO Root | 0x514De60834d21eC0E67af32F937FE0A83519a4F5 |
@@ -41,6 +41,8 @@ forge script script/Deploy.s.sol \
 | 4 | 駭客直接繞過 Session Key（幕三 Demo，NotAiSession 被拒） | 0xb877fb69d4eca42fb4e98fb575c8fb8f4b8bfb4dd1d76efc18fdb0b0334f45df |
 | 5 | 正常付款成功（新合約 0x7404…033f，桶子式 rolling window，只用 Session Key） | 0x14ba2e05d4828fe8305ba1ef04c3dd40b67a1f23c3f177680770e4b3081a0525 |
 | 6 | 駭客直接繞過 Session Key（新合約 0x7404…033f，NotAiSession 被拒） | 0xd85d780afa818d24af8233aa419e59e2b25c62b77b290da312ec29fd39887398 |
+| 7 | 正常付款成功（合約 0x29d3…1f55，25 桶版，只用 Session Key） | 0xa906df870e1cf32c1e16c923e4fb65b5a28174dd197d9a775148a0002c7dbab0 |
+| 8 | Direct Bypass，收款人為 Hacker 0x8888…8888（NotAiSession 被拒） | 0x3c74bb4e432007b250392de205d00ebdd27642d1323aea13bcc63eb8e015c477 |
 
 ## PR #9 Review 修復備註（M2, 8/30）
 - 目前合約位址 `0xA74b27069bc2391f0Dd489f09cA6C30217aD549b` 已修復 review 提出的
@@ -124,4 +126,57 @@ UserOp 瀏覽器再補上。
 - **Gas 餘額**：Deployer / CFO Root / AI Session 各約 0.0002 ETH。
   依實測 gas 價格（約 0.006 gwei），一次合約部署約 0.0000076 ETH，餘額充裕。
   Demo 前一天需再確認一次。
+
+## PR #9 第三輪 Review 修復備註（M2, 8/31）
+
+合約重新部署至 `0x29d31dB1A9f694181a2793288aa6903a434E1F55`，
+四家白名單已重設、USDC 已重新入金、`SESSION_KEY_APPROVAL` 已重產
+（新 `sessionPermissionId` = `0xdf8f4c53`）。
+
+### 1. CI 的 SESSION_KEY_APPROVAL 問題（本機綠燈是假的）
+先前 `sessionPermissionId` 在模組載入當下就解析 approval。本機有 `.env.ai-runtime`
+所以看似正常，但乾淨的 CI 環境沒有該檔，解析直接拋錯 → 測試檔 import 失敗 →
+**Vitest 實際執行 0 項**。已重現確認（`Tests no tests`）。
+
+修正後的行為：
+- approval 不存在 → `sessionPermissionId` 為 `undefined`，模組可正常 import
+- approval 存在但格式錯誤 → 仍然拋錯，不會靜靜吞掉
+- `buildKernelClient()`（真正動用資金的路徑）→ 缺 approval 時 fail-closed 拋錯
+
+已實測：移除 `.env.ai-runtime` 後，30 項測試確實執行並通過。
+
+### 2. BUCKET_COUNT 24 → 25
+24 桶時，在某個桶的**最後一秒**把額度花滿，經過 23 小時又 1 秒時桶號恰好前進 24 格，
+最舊那格被擠出視窗、額度提早釋放，實際視窗只有約 23 小時，不符合 Max per 24h。
+改為 25 桶後，有效視窗為 24～25 小時，永遠不會短於承諾值。
+
+新增 `testBucketTailNotReleasedBefore24h` 驗證此情境。該測試在 24 桶版本會
+FAIL（`next call did not revert as expected`），已實際確認，不是空測試。
+
+連帶調整：`testDailyLimitResetsNextDay` 的等待時間由 24h+1s 改為 25h+1s，
+以符合新的視窗定義（只改該行，未改動其他既有程式碼）。
+
+Foundry 測試 21 項全過。
+
+### 3. 設定不完整不得偽裝成付款結果（第三輪追加發現）
+
+修完 CI 問題後實測發現更深的問題：沒有 approval 時，`buildKernelClient()` 的
+fail-closed 錯誤會被 `executeTransfer` 自己的 catch 接走、包裝成格式完整的
+`REJECTED` 回傳，`apps/api` 因此回 **200**——等於把「環境沒設定好」記成
+「這筆付款被鏈上拒絕」。這與本專案的誠實回報原則直接抵觸。
+
+已修正：
+- 新增 `chainRuntimeReady(): boolean`（非機密），供呼叫端在動用資金前判斷就緒狀態
+- 內部 `assertChainRuntimeReady()` 於**輸入驗證之後、接觸鏈之前**檢查，
+  設定不足一律向上拋，不再包成付款結果
+- 順序很重要：地址格式／金額等輸入驗證仍在最前面，
+  確保 CI 的離線測試完全不需要任何機密即可執行
+
+實測（移除 `.env.ai-runtime` 模擬 CI）：
+- `packages/smart-account` 30 項測試通過（有無 approval 皆然）
+- `apps/api` 該情境由 200 改為 **502**（不再謊稱付款完成）
+
+待 M2（`apps/api` 為其範圍，本包未修改）：
+若要讓該情境回 503 `CHAIN_INTEGRATION_NOT_READY`，可在既有就緒判斷加上
+`|| !smartAccount.chainRuntimeReady?.()`，即可在呼叫前 fail-closed。
 

@@ -8,18 +8,16 @@ import type {
   PolicyReceipt,
   Vendor,
 } from "@pv/shared";
-import {
-  findMockDecision,
-  findMockReceipt,
-  mockBlastRadius,
-  mockDirectBypass,
-  mockInvoices,
-  mockPlan,
-  mockReceipts,
-  mockVendors,
-} from "./mockData";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001";
+const REQUEST_TIMEOUT_MS = 30_000;
+
+export interface DemoNotice {
+  code: string;
+  message: string;
+  operation: string;
+  status?: number;
+}
 
 export class ApiClientError extends Error {
   constructor(
@@ -32,16 +30,60 @@ export class ApiClientError extends Error {
   }
 }
 
+export function toDemoNotice(operation: string, error: unknown): DemoNotice {
+  const apiError = error instanceof ApiClientError ? error : undefined;
+  let message = "後端目前無法使用，已切換到前端備援資料。";
+
+  if (apiError?.code === "TIMEOUT") {
+    message = "後端回應逾時，已切換到前端備援資料。";
+  } else if (apiError?.code === "NETWORK_ERROR") {
+    message = "無法連上後端，已切換到前端備援資料。";
+  } else if (apiError?.code === "INVALID_RESPONSE") {
+    message = "後端回傳格式無法辨識，已切換到前端備援資料。";
+  } else if (apiError?.code === "DIRECT_BYPASS_DISABLED") {
+    message = "鏈上攻擊示範尚未啟用，已改用前端備援情境。";
+  } else if (apiError?.code.startsWith("CHAIN_")) {
+    message = "鏈上整合尚未完成這次請求，已改用前端備援情境。";
+  } else if (apiError) {
+    message = `後端未完成請求（${apiError.code}），已切換到前端備援資料。`;
+  }
+
+  return {
+    code: apiError?.code ?? "UNKNOWN_ERROR",
+    message,
+    operation,
+    status: apiError?.status,
+  };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    cache: "no-store",
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", ...init?.headers },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new ApiClientError("TIMEOUT", "The API request timed out.");
+    }
+    throw new ApiClientError("NETWORK_ERROR", "The API could not be reached.");
+  } finally {
+    clearTimeout(timeout);
+  }
 
   let payload: ApiResponse<T>;
   try {
-    payload = (await response.json()) as ApiResponse<T>;
+    const parsed = await response.json() as unknown;
+    if (typeof parsed !== "object" || parsed === null || !("ok" in parsed) || typeof parsed.ok !== "boolean") {
+      throw new Error("Invalid API envelope");
+    }
+    payload = parsed as ApiResponse<T>;
   } catch {
     throw new ApiClientError("INVALID_RESPONSE", "The API returned an unreadable response.", response.status);
   }
@@ -58,71 +100,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload.data;
 }
 
-async function withFallback<T>(label: string, load: () => Promise<T>, fallback: () => T): Promise<T> {
-  try {
-    return await load();
-  } catch (error) {
-    console.warn(`[PolicyVault] ${label} failed; using mock fallback.`, error);
-    return fallback();
-  }
-}
-
 export const api = {
-  getVendors: () => withFallback("GET /api/vendors", () => request<Vendor[]>("/api/vendors"), () => mockVendors),
-  getInvoices: () => withFallback("GET /api/invoices", () => request<Invoice[]>("/api/invoices"), () => mockInvoices),
+  getVendors: () => request<Vendor[]>("/api/vendors"),
+  getInvoices: () => request<Invoice[]>("/api/invoices"),
   createPlan: (instruction: string, invoices: Invoice[]) =>
-    withFallback(
-      "POST /api/agent/plan",
-      () => request<{ intents: PaymentIntent[]; agent_message: string }>("/api/agent/plan", {
-        method: "POST",
-        body: JSON.stringify({ instruction, invoices }),
-      }),
-      () => mockPlan,
-    ),
+    request<{ intents: PaymentIntent[]; agent_message: string }>("/api/agent/plan", {
+      method: "POST",
+      body: JSON.stringify({ instruction, invoices }),
+    }),
   evaluatePolicy: (intent: PaymentIntent) =>
-    withFallback(
-      "POST /api/policy/evaluate",
-      () => request<PolicyDecision>("/api/policy/evaluate", { method: "POST", body: JSON.stringify({ intent }) }),
-      () => findMockDecision(intent.intent_id),
-    ),
+    request<PolicyDecision>("/api/policy/evaluate", {
+      method: "POST",
+      body: JSON.stringify({ intent }),
+    }),
   executePayment: (intent: PaymentIntent, decision: PolicyDecision) =>
-    withFallback(
-      "POST /api/payments/execute",
-      () => request<{ execution: ExecutionResult; receipt: PolicyReceipt }>("/api/payments/execute", {
-        method: "POST",
-        body: JSON.stringify({ intent, decision }),
-      }),
-      () => {
-        const mockIndex = mockPlan.intents.findIndex((candidate) => candidate.intent_id === intent.intent_id);
-        const paymentId = mockIndex >= 0 ? `PV-${String(mockIndex + 1).padStart(4, "0")}` : "PV-0001";
-        const receipt = findMockReceipt(paymentId);
-        return { execution: receipt.execution ?? mockDirectBypass, receipt };
-      },
-    ),
-  getBlastRadius: () => withFallback("GET /api/blast-radius", () => request<BlastRadius>("/api/blast-radius"), () => mockBlastRadius),
-  getReceipts: () => withFallback("GET /api/receipts", () => request<PolicyReceipt[]>("/api/receipts"), () => mockReceipts),
-  getReceipt: (paymentId: string) =>
-    withFallback(
-      `GET /api/receipts/${paymentId}`,
-      () => request<PolicyReceipt>(`/api/receipts/${paymentId}`),
-      () => findMockReceipt(paymentId),
-    ),
+    request<{ execution: ExecutionResult; receipt: PolicyReceipt }>("/api/payments/execute", {
+      method: "POST",
+      body: JSON.stringify({ intent, decision }),
+    }),
+  getBlastRadius: () => request<BlastRadius>("/api/blast-radius"),
+  getReceipts: () => request<PolicyReceipt[]>("/api/receipts"),
+  getReceipt: (paymentId: string) => request<PolicyReceipt>(`/api/receipts/${paymentId}`),
   approvePayment: (intentId: string, approve: boolean) =>
-    withFallback(
-      `POST /api/approvals/${intentId}`,
-      () => request<PolicyReceipt>(`/api/approvals/${intentId}`, {
-        method: "POST",
-        body: JSON.stringify({ approve }),
-      }),
-      () => findMockReceipt("PV-0017"),
-    ),
+    request<PolicyReceipt>(`/api/approvals/${intentId}`, {
+      method: "POST",
+      body: JSON.stringify({ approve }),
+    }),
   directBypass: (recipient: string, amountDisplay: number) =>
-    withFallback(
-      "POST /api/attack/direct-bypass",
-      () => request<ExecutionResult>("/api/attack/direct-bypass", {
-        method: "POST",
-        body: JSON.stringify({ recipient, amount_display: amountDisplay }),
-      }),
-      () => mockDirectBypass,
-    ),
+    request<ExecutionResult>("/api/attack/direct-bypass", {
+      method: "POST",
+      body: JSON.stringify({ recipient, amount_display: amountDisplay }),
+    }),
 };
+
+export type DemoApi = typeof api;

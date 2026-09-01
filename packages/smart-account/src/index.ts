@@ -30,7 +30,10 @@ import {
 } from "@zerodev/sdk";
 import { getEntryPoint, KERNEL_V3_1 } from "@zerodev/sdk/constants";
 import { toECDSASigner } from "@zerodev/permissions/signers";
-import { deserializePermissionAccount } from "@zerodev/permissions";
+import {
+  decodeParamsFromInitCode,
+  deserializePermissionAccount,
+} from "@zerodev/permissions";
 import {
   http,
   fallback,
@@ -49,9 +52,9 @@ import type { PaymentIntent, ExecutionResult } from "@pv/shared";
 const RPC_URL = process.env.RPC_URL!;
 // 風險 4（Plan B 文件）：備援 RPC。主節點掛掉時 viem 會自動改打備援，
 // Demo 現場不需要停下來手改設定。
+const DEFAULT_RPC_URL_FALLBACK = "https://base-sepolia-rpc.publicnode.com";
 const RPC_URL_FALLBACK =
-  process.env.RPC_URL_FALLBACK ?? "https://base-sepolia-rpc.publicnode.com";
-const rpcTransport = fallback([http(RPC_URL), http(RPC_URL_FALLBACK)]);
+  process.env.RPC_URL_FALLBACK || DEFAULT_RPC_URL_FALLBACK;
 const BUNDLER_RPC = process.env.BUNDLER_RPC!;
 const PAYMASTER_RPC = process.env.PAYMASTER_RPC!;
 const TREASURY_POLICY_MODULE = process.env.TREASURY_POLICY_MODULE! as `0x${string}`;
@@ -87,29 +90,151 @@ export const sessionKeyOnly = true;
  * 這個值由權限政策內容推導而來，可用來辨識「目前生效的是哪一組權限設定」。
  * 解析失敗時直接拋錯（fail-closed），不回傳空值。
  */
-export function readPermissionIdFromApproval(approval: string): string {
+type ParsedSessionApproval = {
+  permissionId: `0x${string}`;
+  accountAddress: `0x${string}`;
+  callTargets: `0x${string}`[];
+};
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isHexBytes(value: unknown): value is `0x${string}` {
+  return typeof value === "string" && /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
+}
+
+function isNonEmptyHexBytes(value: unknown): value is `0x${string}` {
+  return typeof value === "string" && /^0x(?:[0-9a-fA-F]{2})+$/.test(value);
+}
+
+function hasAiTransferAbi(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  const matches = value.filter(
+    (item) => isRecord(item) && item.type === "function" && item.name === "aiTransfer"
+  );
+  if (matches.length !== 1) return false;
+  const inputs = matches[0].inputs;
+  return (
+    Array.isArray(inputs) &&
+    inputs.map((input: unknown) => (isRecord(input) ? input.type : undefined)).join(",") ===
+      "address,address,uint256,bytes32"
+  );
+}
+
+function isValidApprovalInitCode(value: unknown): value is `0x${string}` {
+  if (!isHexBytes(value)) return false;
+  try {
+    decodeParamsFromInitCode(value, KERNEL_V3_1);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function parseSessionApproval(approval: string): ParsedSessionApproval {
   let decoded: any;
   try {
-    decoded = JSON.parse(Buffer.from(approval, "base64").toString("utf-8"));
+    if (
+      approval !== approval.trim() ||
+      !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(approval)
+    ) {
+      throw new Error("non-canonical base64");
+    }
+    const bytes = Buffer.from(approval, "base64");
+    if (bytes.toString("base64") !== approval) throw new Error("non-canonical base64");
+    decoded = JSON.parse(bytes.toString("utf-8"));
   } catch {
     throw new Error("SESSION_KEY_APPROVAL 無法解碼為 JSON，請重新產生 approval 字串。");
   }
+
   const id = decoded?.permissionParams?.permissionId;
-  if (typeof id !== "string" || !id.startsWith("0x")) {
+  if (typeof id !== "string" || !/^0x[0-9a-fA-F]{8}$/.test(id)) {
     throw new Error("SESSION_KEY_APPROVAL 中找不到 permissionParams.permissionId，請重新產生 approval 字串。");
   }
-  return id;
+  if (
+    !isRecord(decoded) ||
+    Object.prototype.hasOwnProperty.call(decoded, "privateKey") ||
+    !isRecord(decoded.permissionParams) ||
+    !Array.isArray(decoded.permissionParams.policies) ||
+    decoded.permissionParams.policies.length === 0 ||
+    !isRecord(decoded.accountParams) ||
+    typeof decoded.accountParams.accountAddress !== "string" ||
+    !isAddress(decoded.accountParams.accountAddress, { strict: false }) ||
+    /^0x0{40}$/i.test(decoded.accountParams.accountAddress) ||
+    !isValidApprovalInitCode(decoded.accountParams.initCode) ||
+    !isRecord(decoded.action) ||
+    typeof decoded.action.address !== "string" ||
+    decoded.action.address.toLowerCase() !== "0x0000000000000000000000000000000000000000" ||
+    typeof decoded.action.selector !== "string" ||
+    decoded.action.selector.toLowerCase() !== "0xe9ae5c53" ||
+    decoded.action.hook !== undefined ||
+    !isRecord(decoded.validityData) ||
+    !Number.isSafeInteger(decoded.validityData.validAfter) ||
+    decoded.validityData.validAfter < 0 ||
+    !Number.isSafeInteger(decoded.validityData.validUntil) ||
+    decoded.validityData.validUntil < 0 ||
+    decoded.isPreInstalled !== false ||
+    !isNonEmptyHexBytes(decoded.enableSignature)
+  ) {
+    throw new Error("SESSION_KEY_APPROVAL 結構不完整或含有不允許的私鑰，請重新產生 approval 字串。");
+  }
+
+  const [policy] = decoded.permissionParams.policies;
+  const policyParams = isRecord(policy) ? policy.policyParams : undefined;
+  const permissions = isRecord(policyParams) ? policyParams.permissions : undefined;
+  const permission = Array.isArray(permissions) ? permissions[0] : undefined;
+  if (
+    decoded.permissionParams.policies.length !== 1 ||
+    !isRecord(policyParams) ||
+    policyParams.type !== "call" ||
+    policyParams.policyVersion !== "0.0.4" ||
+    policyParams.policyFlag !== "0x0000" ||
+    policyParams.policyAddress !== undefined ||
+    !Array.isArray(permissions) ||
+    permissions.length !== 1 ||
+    !isRecord(permission) ||
+    permission.functionName !== "aiTransfer" ||
+    typeof permission.selector !== "string" ||
+    permission.selector.toLowerCase() !== "0xd4eb9b1e" ||
+    permission.callType !== "0x00" ||
+    permission.valueLimit !== "0" ||
+    !Array.isArray(permission.rules) ||
+    permission.rules.length !== 0 ||
+    !hasAiTransferAbi(permission.abi) ||
+    typeof permission.target !== "string" ||
+    !isAddress(permission.target, { strict: false }) ||
+    /^0x0{40}$/i.test(permission.target)
+  ) {
+    throw new Error("SESSION_KEY_APPROVAL 未包含 aiTransfer call policy，請重新產生 approval 字串。");
+  }
+
+  return {
+    permissionId: id as `0x${string}`,
+    accountAddress: decoded.accountParams.accountAddress as `0x${string}`,
+    callTargets: [permission.target as `0x${string}`],
+  };
+}
+
+export function readPermissionIdFromApproval(approval: string): string {
+  return parseSessionApproval(approval).permissionId;
 }
 
 /**
  * 目前生效的權限設定識別碼（非秘密，可供 API 記錄與稽核）。
  * 環境中沒有 approval 時為 undefined —— 這是為了讓沒有機密的環境
  * （例如 CI）仍能 import 本模組並執行單元測試。
- * 注意：字串存在但格式錯誤時仍會拋錯，不會靜靜吞掉。
+ * 字串存在但格式錯誤時也會是 undefined，並由 chainRuntimeReady 回報未就緒；
+ * 這可避免壞設定在 import 階段讓整個 API／測試套件零執行。
  */
-export const sessionPermissionId: string | undefined = SESSION_KEY_APPROVAL
-  ? readPermissionIdFromApproval(SESSION_KEY_APPROVAL)
-  : undefined;
+export const sessionPermissionId: string | undefined = (() => {
+  if (!SESSION_KEY_APPROVAL) return undefined;
+  try {
+    return readPermissionIdFromApproval(SESSION_KEY_APPROVAL);
+  } catch {
+    return undefined;
+  }
+})();
 
 /**
  * Review #5：金額驗證抽成純函式，不需要網路或私鑰即可測試。
@@ -122,12 +247,132 @@ export type AmountValidation =
 
 const UINT256_MAX = (1n << 256n) - 1n;
 
+export type ChainRuntimeConfig = {
+  RPC_URL?: string;
+  RPC_URL_FALLBACK?: string;
+  BUNDLER_RPC?: string;
+  PAYMASTER_RPC?: string;
+  TREASURY_POLICY_MODULE?: string;
+  USDC_ADDRESS?: string;
+  AI_SESSION_PRIVATE_KEY?: string;
+  SMART_ACCOUNT_ADDRESS?: string;
+  SESSION_KEY_APPROVAL?: string;
+};
+
+type ValidatedChainRuntimeConfig = {
+  RPC_URL: string;
+  RPC_URL_FALLBACK: string;
+  BUNDLER_RPC: string;
+  PAYMASTER_RPC: string;
+  TREASURY_POLICY_MODULE: `0x${string}`;
+  USDC_ADDRESS: `0x${string}`;
+  AI_SESSION_PRIVATE_KEY: `0x${string}`;
+  SMART_ACCOUNT_ADDRESS: `0x${string}`;
+  SESSION_KEY_APPROVAL: string;
+};
+
+type ChainRuntimeValidation =
+  | { ok: true; config: ValidatedChainRuntimeConfig }
+  | { ok: false; issues: string[] };
+
+const chainRuntimeConfig: ChainRuntimeConfig = {
+  RPC_URL,
+  RPC_URL_FALLBACK,
+  BUNDLER_RPC,
+  PAYMASTER_RPC,
+  TREASURY_POLICY_MODULE,
+  USDC_ADDRESS,
+  AI_SESSION_PRIVATE_KEY,
+  SMART_ACCOUNT_ADDRESS,
+  SESSION_KEY_APPROVAL,
+};
+
+function isHttpUrl(value: string | undefined): value is string {
+  if (!value || value !== value.trim()) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isPrivateKey(value: string | undefined): value is `0x${string}` {
+  if (typeof value !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value)) return false;
+  try {
+    privateKeyToAccount(value as `0x${string}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isRuntimeAddress(value: string | undefined): value is `0x${string}` {
+  return Boolean(
+    value && isAddress(value, { strict: false }) && !/^0x0{40}$/i.test(value)
+  );
+}
+
+function inspectChainRuntimeConfig(config: ChainRuntimeConfig): ChainRuntimeValidation {
+  const issues: string[] = [];
+  const rpcUrlFallback = config.RPC_URL_FALLBACK || DEFAULT_RPC_URL_FALLBACK;
+
+  for (const key of ["RPC_URL", "BUNDLER_RPC", "PAYMASTER_RPC"] as const) {
+    if (!isHttpUrl(config[key])) issues.push(key);
+  }
+  if (!isHttpUrl(rpcUrlFallback)) issues.push("RPC_URL_FALLBACK");
+  for (const key of ["TREASURY_POLICY_MODULE", "USDC_ADDRESS", "SMART_ACCOUNT_ADDRESS"] as const) {
+    if (!isRuntimeAddress(config[key])) issues.push(key);
+  }
+  if (!isPrivateKey(config.AI_SESSION_PRIVATE_KEY)) issues.push("AI_SESSION_PRIVATE_KEY");
+  let parsedApproval: ParsedSessionApproval | undefined;
+  try {
+    if (config.SESSION_KEY_APPROVAL) {
+      parsedApproval = parseSessionApproval(config.SESSION_KEY_APPROVAL);
+    }
+  } catch {
+    // 統一在下面標記 SESSION_KEY_APPROVAL，不把 blob 或私鑰寫進錯誤訊息。
+  }
+  if (
+    !parsedApproval ||
+    !isRuntimeAddress(config.SMART_ACCOUNT_ADDRESS) ||
+    parsedApproval.accountAddress.toLowerCase() !== config.SMART_ACCOUNT_ADDRESS.toLowerCase() ||
+    !isRuntimeAddress(config.TREASURY_POLICY_MODULE) ||
+    !parsedApproval.callTargets.some(
+      (target) => target.toLowerCase() === config.TREASURY_POLICY_MODULE!.toLowerCase()
+    )
+  ) {
+    issues.push("SESSION_KEY_APPROVAL");
+  }
+
+  if (issues.length > 0) return { ok: false, issues };
+  return {
+    ok: true,
+    config: {
+      RPC_URL: config.RPC_URL!,
+      RPC_URL_FALLBACK: rpcUrlFallback,
+      BUNDLER_RPC: config.BUNDLER_RPC!,
+      PAYMASTER_RPC: config.PAYMASTER_RPC!,
+      TREASURY_POLICY_MODULE: config.TREASURY_POLICY_MODULE as `0x${string}`,
+      USDC_ADDRESS: config.USDC_ADDRESS as `0x${string}`,
+      AI_SESSION_PRIVATE_KEY: config.AI_SESSION_PRIVATE_KEY as `0x${string}`,
+      SMART_ACCOUNT_ADDRESS: config.SMART_ACCOUNT_ADDRESS as `0x${string}`,
+      SESSION_KEY_APPROVAL: config.SESSION_KEY_APPROVAL!,
+    },
+  };
+}
+
+/** 純格式檢查，不連線、不簽章，也不洩漏設定值。 */
+export function validateChainRuntimeConfig(config: ChainRuntimeConfig): boolean {
+  return inspectChainRuntimeConfig(config).ok;
+}
+
 /**
- * 這個 runtime 是否已具備動用資金所需的設定（目前即 SESSION_KEY_APPROVAL）。
+ * 這個 runtime 是否已具備動用資金所需的完整且格式正確設定。
  * 非機密，供 API 在呼叫前 fail-closed 判斷「鏈上整合尚未就緒」。
  */
 export function chainRuntimeReady(): boolean {
-  return Boolean(SESSION_KEY_APPROVAL);
+  return validateChainRuntimeConfig(chainRuntimeConfig);
 }
 
 /**
@@ -135,13 +380,15 @@ export function chainRuntimeReady(): boolean {
  * 「環境沒設定好」與「這筆付款被鏈上拒絕」是兩件完全不同的事，
  * 混為一談會讓呼叫端把未嘗試的付款記成已被拒絕。
  */
-function assertChainRuntimeReady(): void {
-  if (!chainRuntimeReady()) {
+function assertChainRuntimeReady(): ValidatedChainRuntimeConfig {
+  const validation = inspectChainRuntimeConfig(chainRuntimeConfig);
+  if (!validation.ok) {
     throw new Error(
-      "[smart-account] CHAIN_RUNTIME_NOT_CONFIGURED：環境中缺少 SESSION_KEY_APPROVAL，" +
+      `[smart-account] CHAIN_RUNTIME_NOT_CONFIGURED：設定缺少或格式錯誤：${validation.issues.join(", ")}。` +
         "無法動用資金。請依 packages/smart-account/AI_RUNTIME_ENV.md 設定 .env.ai-runtime。"
     );
   }
+  return validation.config;
 }
 
 /** receipt 判讀所需的最小結構，讓單元測試可以餵假物件進來。 */
@@ -264,11 +511,17 @@ const KNOWN_RECIPIENT_CANDIDATES = (
   .map((s) => s.trim() as `0x${string}`)
   .filter(Boolean);
 
-const publicClient = createPublicClient({
-  chain: baseSepolia,
-  transport: rpcTransport,
-});
 const entryPoint = getEntryPoint("0.7");
+
+function createRuntimePublicClient(runtimeConfig: ValidatedChainRuntimeConfig) {
+  return createPublicClient({
+    chain: baseSepolia,
+    transport: fallback([
+      http(runtimeConfig.RPC_URL),
+      http(runtimeConfig.RPC_URL_FALLBACK),
+    ]),
+  });
+}
 
 const treasuryAbi = parseAbi([
   "function aiTransfer(address token, address to, uint256 amount, bytes32 invoiceHash) external returns (bool)",
@@ -312,15 +565,9 @@ export function findRevertData(err: any): string | undefined {
 
 let cachedKernelClient: Awaited<ReturnType<typeof buildKernelClient>> | null = null;
 
-async function buildKernelClient() {
-  // Fail-closed：真正要動用資金的路徑上，approval 缺一不可。
-  if (!SESSION_KEY_APPROVAL) {
-    throw new Error(
-      "[smart-account] 拒絕執行：環境中缺少 SESSION_KEY_APPROVAL，無法重建受限帳戶。" +
-        "請依 packages/smart-account/AI_RUNTIME_ENV.md 設定 .env.ai-runtime。"
-    );
-  }
-  const aiAccount = privateKeyToAccount(AI_SESSION_PRIVATE_KEY);
+async function buildKernelClient(runtimeConfig: ValidatedChainRuntimeConfig) {
+  const publicClient = createRuntimePublicClient(runtimeConfig);
+  const aiAccount = privateKeyToAccount(runtimeConfig.AI_SESSION_PRIVATE_KEY);
   const aiSessionSigner = await toECDSASigner({ signer: aiAccount });
 
   // 用 CFO Root 事先產生好的 approval 字串 + AI 自己的 session key 重建帳戶，
@@ -329,19 +576,19 @@ async function buildKernelClient() {
     publicClient,
     entryPoint,
     KERNEL_V3_1,
-    SESSION_KEY_APPROVAL,
+    runtimeConfig.SESSION_KEY_APPROVAL,
     aiSessionSigner
   );
-  assertExpectedAccount(account.address);
+  assertExpectedAccount(account.address, runtimeConfig.SMART_ACCOUNT_ADDRESS);
 
   const kernelPaymaster = createZeroDevPaymasterClient({
     chain: baseSepolia,
-    transport: http(PAYMASTER_RPC),
+    transport: http(runtimeConfig.PAYMASTER_RPC),
   });
   const kernelClient = createKernelAccountClient({
     account,
     chain: baseSepolia,
-    bundlerTransport: http(BUNDLER_RPC),
+    bundlerTransport: http(runtimeConfig.BUNDLER_RPC),
     paymaster: {
       getPaymasterData(userOperation) {
         return kernelPaymaster.sponsorUserOperation({ userOperation });
@@ -352,9 +599,9 @@ async function buildKernelClient() {
   return { account, kernelClient };
 }
 
-async function getKernelClient() {
+async function getKernelClient(runtimeConfig: ValidatedChainRuntimeConfig) {
   if (!cachedKernelClient) {
-    cachedKernelClient = await buildKernelClient();
+    cachedKernelClient = await buildKernelClient(runtimeConfig);
   }
   return cachedKernelClient;
 }
@@ -387,20 +634,25 @@ export async function executeTransfer(intent: PaymentIntent): Promise<ExecutionR
 
   // 輸入驗證通過後、真正接觸鏈之前才檢查設定。
   // 設定問題一律向上拋，不可偽裝成付款結果（置於 try 之外，確保不被吞掉）。
-  assertChainRuntimeReady();
+  const runtimeConfig = assertChainRuntimeReady();
 
   try {
-    const { account, kernelClient } = await getKernelClient();
+    const { account, kernelClient } = await getKernelClient(runtimeConfig);
     const invoiceHash = keccak256(toBytes(intent.invoice_id));
 
     const callData = await account.encodeCalls([
       {
-        to: TREASURY_POLICY_MODULE,
+        to: runtimeConfig.TREASURY_POLICY_MODULE,
         value: 0n,
         data: encodeFunctionData({
           abi: treasuryAbi,
           functionName: "aiTransfer",
-          args: [USDC_ADDRESS, intent.recipient as `0x${string}`, amountCheck.value, invoiceHash],
+          args: [
+            runtimeConfig.USDC_ADDRESS,
+            intent.recipient as `0x${string}`,
+            amountCheck.value,
+            invoiceHash,
+          ],
         }),
       },
     ]);
@@ -485,25 +737,29 @@ export async function executeRawTransferWithSessionKey(
   }
   const amountBig = amountCheck.value;
 
-  assertChainRuntimeReady();
+  const runtimeConfig = assertChainRuntimeReady();
+  const publicClient = createRuntimePublicClient(runtimeConfig);
 
-  const aiAccount = privateKeyToAccount(AI_SESSION_PRIVATE_KEY);
+  const aiAccount = privateKeyToAccount(runtimeConfig.AI_SESSION_PRIVATE_KEY);
   const walletClient = createWalletClient({
     account: aiAccount,
     chain: baseSepolia,
-    transport: rpcTransport,
+    transport: fallback([
+      http(runtimeConfig.RPC_URL),
+      http(runtimeConfig.RPC_URL_FALLBACK),
+    ]),
   });
   const invoiceHash = keccak256(toBytes(`RAW-BYPASS-${Date.now()}`));
   const data = encodeFunctionData({
     abi: treasuryAbi,
     functionName: "aiTransfer",
-    args: [USDC_ADDRESS, recipient as `0x${string}`, amountBig, invoiceHash],
+    args: [runtimeConfig.USDC_ADDRESS, recipient as `0x${string}`, amountBig, invoiceHash],
   });
 
   let txHash: `0x${string}`;
   try {
     txHash = await walletClient.sendTransaction({
-      to: TREASURY_POLICY_MODULE,
+      to: runtimeConfig.TREASURY_POLICY_MODULE,
       data,
       gas: 200_000n,
     });
@@ -527,7 +783,7 @@ export async function executeRawTransferWithSessionKey(
       try {
         await publicClient.call({
           account: aiAccount.address,
-          to: TREASURY_POLICY_MODULE,
+          to: runtimeConfig.TREASURY_POLICY_MODULE,
           data,
         });
       } catch (simErr: any) {
@@ -568,8 +824,10 @@ export async function executeRawTransferWithSessionKey(
 
 // 3. 給 Blast Radius 讀鏈上真實權限
 export async function readSessionPermission() {
+  const runtimeConfig = assertChainRuntimeReady();
+  const publicClient = createRuntimePublicClient(runtimeConfig);
   const [token, perTx, daily, remainingToday, expiry] = await publicClient.readContract({
-    address: TREASURY_POLICY_MODULE,
+    address: runtimeConfig.TREASURY_POLICY_MODULE,
     abi: treasuryAbi,
     functionName: "readPermission",
   });
@@ -577,7 +835,7 @@ export async function readSessionPermission() {
   let authorized_recipient_count = 0;
   for (const candidate of KNOWN_RECIPIENT_CANDIDATES) {
     const ok = await publicClient.readContract({
-      address: TREASURY_POLICY_MODULE,
+      address: runtimeConfig.TREASURY_POLICY_MODULE,
       abi: treasuryAbi,
       functionName: "allowedRecipient",
       args: [candidate],
@@ -598,6 +856,8 @@ export async function readSessionPermission() {
 // 4. 健康檢查（M2 啟動時會呼叫）
 export async function chainHealth() {
   try {
+    const runtimeConfig = assertChainRuntimeReady();
+    const publicClient = createRuntimePublicClient(runtimeConfig);
     const [chainId, blockNumber, permission] = await Promise.all([
       publicClient.getChainId(),
       publicClient.getBlockNumber(),
@@ -608,7 +868,7 @@ export async function chainHealth() {
       ok: true,
       chainId,
       blockNumber: Number(blockNumber),
-      smartAccount: SMART_ACCOUNT_ADDRESS,
+      smartAccount: runtimeConfig.SMART_ACCOUNT_ADDRESS,
       sessionKeyValid,
     };
   } catch {

@@ -26,7 +26,8 @@ contract TreasuryPolicyModule {
 
     /// @dev Rolling-24h daily limit, stored as fixed-size hourly buckets.
     ///      Spend accumulates into bucketSpent[timestamp / BUCKET_DURATION];
-    ///      the window is the current bucket plus the previous 23.
+    ///      the window is the current bucket plus the previous 24
+    ///      (BUCKET_COUNT - 1).
     ///      Spend still does NOT reset at a fixed UTC midnight (that let an
     ///      attacker double-spend across the calendar-day boundary), but
     ///      unlike an append-only history array the read cost is bounded at

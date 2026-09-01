@@ -154,7 +154,55 @@ describe("validateAmount", () => {
 describe("readPermissionIdFromApproval", () => {
   it("extracts permissionId from a valid approval blob", () => {
     const blob = Buffer.from(
-      JSON.stringify({ permissionParams: { permissionId: "0xabcd1234" } })
+      JSON.stringify({
+        permissionParams: {
+          permissionId: "0xabcd1234",
+          policies: [
+            {
+              policyParams: {
+                type: "call",
+                policyVersion: "0.0.4",
+                policyFlag: "0x0000",
+                permissions: [
+                  {
+                    target: "0x1111111111111111111111111111111111111111",
+                    functionName: "aiTransfer",
+                    selector: "0xd4eb9b1e",
+                    callType: "0x00",
+                    valueLimit: "0",
+                    rules: [],
+                    abi: [
+                      {
+                        type: "function",
+                        name: "aiTransfer",
+                        stateMutability: "nonpayable",
+                        inputs: [
+                          { name: "token", type: "address" },
+                          { name: "to", type: "address" },
+                          { name: "amount", type: "uint256" },
+                          { name: "invoiceHash", type: "bytes32" },
+                        ],
+                        outputs: [{ type: "bool" }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        action: {
+          address: "0x0000000000000000000000000000000000000000",
+          selector: "0xe9ae5c53",
+        },
+        validityData: { validAfter: 0, validUntil: 0 },
+        accountParams: {
+          initCode: "0x",
+          accountAddress: "0x2222222222222222222222222222222222222222",
+        },
+        enableSignature: "0x12",
+        isPreInstalled: false,
+      })
     ).toString("base64");
     expect(readPermissionIdFromApproval(blob)).toBe("0xabcd1234");
   });

@@ -144,6 +144,8 @@ function makeIntent(): PaymentIntent {
   };
 }
 
+import { KERNEL_INIT_CODE_FIXTURE } from "./test-fixtures.js";
+
 describe("chain runtime configuration validation", () => {
   let runtime: typeof import("./index.js");
 
@@ -172,6 +174,33 @@ describe("chain runtime configuration validation", () => {
     delete config.RPC_URL_FALLBACK;
     expect(runtime.validateChainRuntimeConfig(config)).toBe(true);
   });
+
+  // 既有的正向案例使用空的 initCode（"0x"）。這一項確認「真實、非空的
+  // Kernel initCode」同樣能通過 decodeParamsFromInitCode 檢查。
+  it("accepts a real, non-empty Kernel initCode", () => {
+    const approval = makeApproval((a) => {
+      a.accountParams.initCode = KERNEL_INIT_CODE_FIXTURE;
+    });
+    expect(
+      runtime.validateChainRuntimeConfig({
+        ...makeValidConfig(),
+        SESSION_KEY_APPROVAL: approval,
+      })
+    ).toBe(true);
+  });
+
+  // 前後空白會讓端點字串在不同環境被解讀成不同的值，必須擋掉。
+  it.each(["RPC_URL", "BUNDLER_RPC", "PAYMASTER_RPC"] as const)(
+    "rejects an untrimmed %s",
+    (key) => {
+      expect(
+        runtime.validateChainRuntimeConfig({
+          ...makeValidConfig(),
+          [key]: " https://rpc.example ",
+        })
+      ).toBe(false);
+    }
+  );
 
   it.each([
     ["RPC_URL", "ftp://rpc.example"],

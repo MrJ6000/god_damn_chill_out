@@ -3,7 +3,7 @@
 
 > **Assume the AI is compromised. Prove the money is still safe.**
 
-<!-- TODO(M5): 徽章 -->
+[![CI](https://github.com/MrJ6000/god_damn_chill_out/actions/workflows/ci.yml/badge.svg)](https://github.com/MrJ6000/god_damn_chill_out/actions/workflows/ci.yml)
 
 ---
 

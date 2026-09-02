@@ -18,12 +18,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
-      - name: Test workspace without chain credentials
-        run: pnpm --filter '!@pv/smart-account' -r test
-        env:
-          SESSION_KEY_APPROVAL: invalid-ci-fixture
-      - name: Test smart account with non-secret approval fixture
-        run: pnpm --filter @pv/smart-account test
+      - name: Test workspace with non-secret approval fixture
+        run: pnpm -r test
         env:
           SESSION_KEY_APPROVAL: eyJwZXJtaXNzaW9uUGFyYW1zIjp7InBlcm1pc3Npb25JZCI6IjB4MDAifX0=
       - run: pnpm bench --offline

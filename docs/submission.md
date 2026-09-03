@@ -22,7 +22,7 @@ AI agents can extract payment intent from invoices, but invoice text is untruste
 
 The agent produces structured payment intent. A deterministic policy engine checks vendor identity, beneficiary, token, transaction and rolling daily limits, session expiry, duplicate payment state, and required approval. The smart-account permission path is scoped to the treasury policy contract. The demo shows a normal payment, a compromised-agent proposal denied for beneficiary mismatch, and a direct contract bypass that reverts on Base Sepolia.
 
-The repository includes 100 versioned attack cases and an offline benchmark runner. The committed 2026-09-02 run matched all 100 expected outcomes, allowed all 20 legitimate cases, and executed zero of 80 malicious cases. These figures are recorded output, not estimates.
+The repository includes 100 versioned attack cases and an offline policy benchmark runner. The committed run matched all 100 expected outcomes, allowed all 20 legitimate cases, and gave no aggregate `ALLOW` verdict to the 74 cases marked `must_not_execute`. The runner does not execute payments; on-chain execution evidence is listed separately below. These figures are recorded output, not estimates.
 
 ## Technology
 

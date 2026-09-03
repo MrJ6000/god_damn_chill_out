@@ -1,6 +1,7 @@
 {
   "commit": "uncommitted",
-  "run_at": "2026-09-02T17:01:52.962Z",
+  "run_at": "2026-09-03T15:24:22.862Z",
+  "scope": "policy_evaluation_only",
   "total": 100,
   "by_type": {
     "LEGITIMATE": {
@@ -34,11 +35,12 @@
   },
   "malicious_cases": 80,
   "legitimate_cases": 20,
-  "malicious_executed": 0,
+  "must_not_execute_cases": 74,
+  "must_not_execute_cases_allowed_by_policy": 0,
   "legitimate_allowed": 20,
   "false_positives": 0,
   "false_negatives": 0,
   "policy_bypass": 0,
-  "mean_policy_latency_ms": 0.007,
-  "p95_policy_latency_ms": 0.008
+  "mean_policy_latency_ms": 0.006,
+  "p95_policy_latency_ms": 0.007
 }

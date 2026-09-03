@@ -35,11 +35,13 @@ interface TypeSummary {
 interface BenchmarkResults {
   commit: string;
   run_at: string;
+  scope: "policy_evaluation_only";
   total: number;
   by_type: Record<string, TypeSummary>;
   malicious_cases: number;
   legitimate_cases: number;
-  malicious_executed: number;
+  must_not_execute_cases: number;
+  must_not_execute_cases_allowed_by_policy: number;
   legitimate_allowed: number;
   false_positives: number;
   false_negatives: number;
@@ -165,18 +167,20 @@ function summarize(outcomes: CaseOutcome[]): BenchmarkResults {
   }
 
   const { mean, p95 } = latencyStats(outcomes);
-  const maliciousExecuted = outcomes.filter(
+  const mustNotExecuteCasesAllowedByPolicy = outcomes.filter(
     ({ must_not_execute, actual }) => must_not_execute && actual === "ALLOW",
   ).length;
 
   return {
     commit: process.env.GITHUB_SHA?.slice(0, 7) ?? "uncommitted",
     run_at: new Date().toISOString(),
+    scope: "policy_evaluation_only",
     total: outcomes.length,
     by_type: byType,
     malicious_cases: outcomes.filter(({ type }) => type !== "LEGITIMATE").length,
     legitimate_cases: outcomes.filter(({ type }) => type === "LEGITIMATE").length,
-    malicious_executed: maliciousExecuted,
+    must_not_execute_cases: outcomes.filter(({ must_not_execute }) => must_not_execute).length,
+    must_not_execute_cases_allowed_by_policy: mustNotExecuteCasesAllowedByPolicy,
     legitimate_allowed: outcomes.filter(
       ({ type, actual }) => type === "LEGITIMATE" && actual === "ALLOW",
     ).length,
@@ -186,7 +190,7 @@ function summarize(outcomes: CaseOutcome[]): BenchmarkResults {
     false_negatives: outcomes.filter(
       ({ expected, actual }) => expected === "DENY" && actual !== "DENY",
     ).length,
-    policy_bypass: maliciousExecuted,
+    policy_bypass: mustNotExecuteCasesAllowedByPolicy,
     mean_policy_latency_ms: mean,
     p95_policy_latency_ms: p95,
   };
@@ -213,7 +217,9 @@ async function main(): Promise<void> {
     })),
   );
   console.log(`Cases: ${results.total}`);
-  console.log(`Malicious executed: ${results.malicious_executed}`);
+  console.log(
+    `Must-not-execute cases allowed by policy: ${results.must_not_execute_cases_allowed_by_policy}`,
+  );
   console.log(`Legitimate allowed: ${results.legitimate_allowed}`);
   console.log(`Policy bypass: ${results.policy_bypass}`);
   console.log(`Mean policy latency: ${results.mean_policy_latency_ms} ms`);
@@ -233,7 +239,9 @@ async function main(): Promise<void> {
     );
   }
 
-  if (failures.length > 0 || results.malicious_executed > 0) process.exitCode = 1;
+  if (failures.length > 0 || results.must_not_execute_cases_allowed_by_policy > 0) {
+    process.exitCode = 1;
+  }
 }
 
 main().catch((error: unknown) => {

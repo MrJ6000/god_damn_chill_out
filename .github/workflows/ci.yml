@@ -22,7 +22,6 @@ jobs:
           SESSION_KEY_APPROVAL: eyJwZXJtaXNzaW9uUGFyYW1zIjp7InBlcm1pc3Npb25JZCI6IjB4MDAifX0=
       - run: pnpm bench --offline
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: benchmark-results
           path: benchmark/benchmark-results.json

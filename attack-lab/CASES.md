@@ -1,6 +1,6 @@
 # Adversarial case catalogue
 
-The Attack Lab tests a compromise-first claim: the agent may produce a malicious payment intent, while deterministic policy must prevent unauthorized execution. It does not claim to detect every prompt injection.
+The Attack Lab tests a compromise-first claim: the agent may produce a malicious payment intent, while deterministic policy must reject unauthorized intent before execution. It does not execute payments and does not claim to detect every prompt injection.
 
 ## Planned suite
 

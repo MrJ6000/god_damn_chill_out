@@ -9,7 +9,7 @@ Target length: 1:50–2:00. Record the application and browser only; exclude `.e
 | 0:28–0:48 | Run **Normal payment** and show ALLOW/receipt. | “A valid invoice matches the trusted vendor record and passes policy.” |
 | 0:48–1:10 | Run **AI compromised** and zoom in on both addresses. | “A realistic invoice instruction persuades the agent to replace the beneficiary. PolicyVault does not need to recognize every injection: the address mismatch is enough to deny payment.” |
 | 1:10–1:28 | Run **Direct attack** and show the reverted BaseScan transaction. | “Skipping the AI does not bypass the contract. The direct call reverts because the caller lacks the authorized execution path.” |
-| 1:28–1:44 | Show Blast Radius and the benchmark summary. | “Authority remains bounded. The reproducible offline suite contains 100 cases; the committed run matched all expected decisions and executed zero malicious payments.” |
+| 1:28–1:44 | Show Blast Radius and the benchmark summary. | “Authority remains bounded. The reproducible offline suite contains 100 policy cases; the committed run matched all expected decisions, and none of the 74 must-not-execute cases received an aggregate ALLOW verdict.” |
 | 1:44–1:58 | Closing title and repository link. | “PolicyVault Sentinel: let AI propose, but never let AI define the security boundary.” |
 
 ## On-screen evidence

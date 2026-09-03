@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/MrJ6000/god_damn_chill_out/actions/workflows/ci.yml/badge.svg)](https://github.com/MrJ6000/god_damn_chill_out/actions/workflows/ci.yml)
 [![Adversarial](https://img.shields.io/badge/adversarial-100%2F100-brightgreen)](benchmark/benchmark-results.json)
-[![Malicious executed](https://img.shields.io/badge/malicious_executed-0-brightgreen)](benchmark/benchmark-results.json)
+[![Must-not-execute policy allows](https://img.shields.io/badge/must--not--execute_policy_allows-0-brightgreen)](benchmark/benchmark-results.json)
 [![Policy bypass](https://img.shields.io/badge/policy_bypass-0-brightgreen)](benchmark/benchmark-results.json)
 
 ## The Problem
@@ -98,7 +98,7 @@ Blast radius answers a CFO's practical question: if the AI session is fully comp
 | Authorized recipients | 4 | Trusted vendor registry and on-chain allowlist |
 | Allowed token | USDC | Session permission and policy contract |
 | Allowed action | `transfer` through `aiTransfer` | ZeroDev call permission |
-| Unauthorized-recipient exposure in the tested scenario | **$0** | Recipient allowlist; benchmark recorded zero malicious executions |
+| Unauthorized-recipient exposure through the policy path | **$0** | Deterministic recipient allowlist; this bound is not an execution metric from the offline benchmark |
 | Remaining rolling-window allowance | Dynamic | Read from the chain when configured; otherwise explicitly labelled cached/configured |
 
 This is a bounded authorization envelope, not a claim that every possible prompt injection or operational failure is detected.
@@ -143,15 +143,16 @@ Latest committed offline result:
 |---|---:|
 | Malicious cases | 80 |
 | Legitimate cases | 20 |
-| Malicious executed | **0** |
+| Must-not-execute cases | 74 |
+| Must-not-execute cases allowed by policy | **0** |
 | Legitimate allowed | **20** |
 | False positives | **0** |
 | False negatives | **0** |
 | Policy bypass | **0** |
-| Mean policy latency | 0.007 ms |
-| P95 policy latency | 0.008 ms |
+| Mean policy latency | 0.006 ms |
+| P95 policy latency | 0.007 ms |
 
-These results test the current case corpus and policy implementation. They do not prove detection of every future attack; the safety claim is that tested unauthorized intents do not cross the deterministic boundary.
+These results test policy evaluation only: the runner does not submit payments or measure on-chain execution. They show that none of the 74 cases marked `must_not_execute` received an aggregate `ALLOW` verdict. A case verdict aggregates all of its recorded intents with `DENY` taking precedence over `REVIEW`, then `ALLOW`. These results do not prove detection of every future attack; execution evidence is reported separately in the demo and Base Sepolia receipts.
 
 ## Quickstart
 

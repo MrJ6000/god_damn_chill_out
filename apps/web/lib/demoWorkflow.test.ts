@@ -6,6 +6,7 @@ import {
   buildNormalPlan,
   executeApproved,
   loadBlastRadius,
+  NORMAL_DEMO_INVOICE_ID,
   runDirectBypass,
   selectReceiptForNavigation,
   type ExecutionScene,
@@ -149,36 +150,62 @@ describe("normal and compromised planning", () => {
 });
 
 describe("approved execution", () => {
-  it("executes only the 16 ALLOW intents and never auto-submits REVIEW or DENY", async () => {
+  it("executes only the canonical ALLOW intent from the complete 18-invoice plan", async () => {
+    const plan = livePlan();
     const executePayment = vi.fn(async (intent: PaymentIntent, decision: PolicyDecision) => (
       createMockPaymentOutcome(intent, decision)
     ));
 
-    const scene = await executeApproved(livePlan(), createClient({ executePayment }));
+    const scene = await executeApproved(plan, createClient({ executePayment }));
     const submittedInvoiceIds = executePayment.mock.calls.map(([intent]) => intent.invoice_id);
 
-    expect(executePayment).toHaveBeenCalledTimes(16);
-    expect(submittedInvoiceIds).not.toContain("INV-8817");
-    expect(submittedInvoiceIds).not.toContain("INV-8821");
+    expect(plan.intents).toHaveLength(18);
+    expect(executePayment).toHaveBeenCalledTimes(1);
+    expect(submittedInvoiceIds).toEqual([NORMAL_DEMO_INVOICE_ID]);
     expect(scene.source).toBe("api");
-    expect(scene.records).toHaveLength(16);
+    expect(scene.records).toHaveLength(1);
   });
 
-  it("submits approved payments sequentially to avoid overflowing the API write queue", async () => {
-    let inFlight = 0;
-    let maxInFlight = 0;
+  it("fails closed instead of substituting another ALLOW invoice", async () => {
+    const plan = livePlan();
+    plan.decisions[0] = { ...plan.decisions[0], verdict: "REVIEW" };
     const executePayment = vi.fn(async (intent: PaymentIntent, decision: PolicyDecision) => {
-      inFlight += 1;
-      maxInFlight = Math.max(maxInFlight, inFlight);
-      await Promise.resolve();
-      inFlight -= 1;
       return createMockPaymentOutcome(intent, decision);
     });
 
-    await executeApproved(livePlan(), createClient({ executePayment }));
+    await expect(executeApproved(plan, createClient({ executePayment }))).rejects.toMatchObject({
+      code: "NORMAL_PAYMENT_UNAVAILABLE",
+    });
 
-    expect(executePayment).toHaveBeenCalledTimes(16);
-    expect(maxInFlight).toBe(1);
+    expect(executePayment).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the canonical invoice is missing", async () => {
+    const plan = livePlan();
+    plan.intents = plan.intents.filter((intent) => intent.invoice_id !== NORMAL_DEMO_INVOICE_ID);
+    const executePayment = vi.fn(async (intent: PaymentIntent, decision: PolicyDecision) => (
+      createMockPaymentOutcome(intent, decision)
+    ));
+
+    await expect(executeApproved(plan, createClient({ executePayment }))).rejects.toMatchObject({
+      code: "NORMAL_PAYMENT_UNAVAILABLE",
+    });
+
+    expect(executePayment).not.toHaveBeenCalled();
+  });
+
+  it("creates exactly one offline mock receipt without calling the payment API", async () => {
+    const plan: PlanScene = { ...livePlan(), source: "mock" };
+    const executePayment = vi.fn(async (intent: PaymentIntent, decision: PolicyDecision) => (
+      createMockPaymentOutcome(intent, decision)
+    ));
+
+    const scene = await executeApproved(plan, createClient({ executePayment }));
+
+    expect(executePayment).not.toHaveBeenCalled();
+    expect(scene.source).toBe("mock");
+    expect(scene.records).toHaveLength(1);
+    expect(scene.records[0]?.receipt.invoice_id).toBe(NORMAL_DEMO_INVOICE_ID);
   });
 
   it("does not turn a failed live side effect into a navigable mock success", async () => {
@@ -200,28 +227,25 @@ describe("approved execution", () => {
     expect(selectReceiptForNavigation(scene)).toBeUndefined();
   });
 
-  it("stops after an API execution failure and isolates the cached receipt from navigation", async () => {
+  it("does not submit later invoices when the selected payment fails", async () => {
     const plan = livePlan();
     plan.intents = plan.intents.slice(0, 3);
     plan.decisions = plan.decisions.slice(0, 3);
-    const executePayment = vi.fn(async (intent: PaymentIntent, decision: PolicyDecision) => {
-      if (intent.intent_id === plan.intents[1].intent_id) {
-        throw new ApiClientError("CHAIN_BROADCAST_FAILED", "broadcast failed", 502);
-      }
-      return createMockPaymentOutcome(intent, decision);
+    const executePayment = vi.fn(async () => {
+      throw new ApiClientError("CHAIN_BROADCAST_FAILED", "broadcast failed", 502);
     });
 
     const scene = await executeApproved(plan, createClient({ executePayment }));
     const cached = scene.cachedDemoRecords[0];
     const destination = selectReceiptForNavigation(scene);
 
-    expect(executePayment).toHaveBeenCalledTimes(2);
-    expect(scene.records).toHaveLength(1);
+    expect(executePayment).toHaveBeenCalledTimes(1);
+    expect(scene.records).toHaveLength(0);
     expect(cached).toBeDefined();
     expect(cached?.receipt.payment_id).toMatch(/^CACHED-/);
     expect(scene.records).not.toContain(cached);
-    expect(destination?.source).toBe("api");
-    expect(destination).not.toBe(cached);
+    expect(scene.notices).toHaveLength(1);
+    expect(destination).toBeUndefined();
   });
 
   it("prefers real EXECUTED evidence over pending or mock receipts", () => {

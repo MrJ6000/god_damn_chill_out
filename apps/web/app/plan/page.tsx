@@ -9,6 +9,7 @@ import { useDemo } from "@/components/DemoProvider";
 import { StatCard } from "@/components/StatCard";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { formatDenyReason } from "@/lib/displayLabels";
+import { NORMAL_DEMO_INVOICE_ID } from "@/lib/demoWorkflow";
 import { selectPlan } from "@/lib/demoState";
 
 const verdictOrder = { DENY: 0, REVIEW: 1, ALLOW: 2 } as const;
@@ -34,6 +35,10 @@ export default function PaymentPlanPage() {
   const counts = plan.decisions.reduce(
     (result, decision) => ({ ...result, [decision.verdict]: result[decision.verdict] + 1 }),
     { ALLOW: 0, REVIEW: 0, DENY: 0 },
+  );
+  const demoPayment = plan.intents.find(
+    (intent) => intent.invoice_id === NORMAL_DEMO_INVOICE_ID
+      && decisionsByIntent.get(intent.intent_id)?.verdict === "ALLOW",
   );
 
   return (
@@ -62,7 +67,7 @@ export default function PaymentPlanPage() {
       ) : null}
 
       <section className="mt-8 grid grid-cols-3 gap-5" aria-label="安全規則檢查結果">
-        <StatCard label="可自動付款" value={String(counts.ALLOW)} detail={plan.source === "api" ? "只執行後端判定為 ALLOW 的付款" : "備援情境中標示為 ALLOW 的付款"} tone="pass" />
+        <StatCard label="可自動付款" value={String(counts.ALLOW)} detail={demoPayment ? `本輪只會送出 ${NORMAL_DEMO_INVOICE_ID}` : `${NORMAL_DEMO_INVOICE_ID} 不可執行，不會改送其他發票`} tone="pass" />
         <StatCard label="需要人工確認" value={String(counts.REVIEW)} detail="此流程不會自動核准" tone="review" />
         <StatCard label="已攔截" value={String(counts.DENY)} detail="不會送出付款" tone="fail" />
       </section>
@@ -99,16 +104,16 @@ export default function PaymentPlanPage() {
 
       <div className="mt-6 flex items-center justify-end gap-4">
         {busy ? (
-          <AgentActivity className="w-[500px]" detail="REVIEW 與 DENY 不會送出" label={`正在送出 ${counts.ALLOW} 筆 ALLOW 付款`} mode="executing" />
+          <AgentActivity className="w-[500px]" detail="其餘 ALLOW、REVIEW 與 DENY 都不會送出" label={`正在送出 ${NORMAL_DEMO_INVOICE_ID}`} mode="executing" />
         ) : null}
         <button
           aria-busy={busy}
-          disabled={busy || counts.ALLOW === 0}
+          disabled={busy || !demoPayment}
           className={`group inline-flex min-w-[240px] items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold text-[#04120d] disabled:cursor-not-allowed disabled:opacity-60 ${busy ? "bg-[#6ee7b7]" : "bg-pass hover:bg-[#34d399]"}`}
           onClick={() => void executeCurrentPlan()}
           type="button"
         >
-          {busy ? "正在建立憑證…" : `執行 ${counts.ALLOW} 筆已通過付款`}
+          {busy ? "正在建立單筆憑證…" : `執行示範付款（${NORMAL_DEMO_INVOICE_ID}）`}
           <AnimatedIcon active={busy} className="h-4 w-4" morphTo="check" name="arrow-right" />
         </button>
       </div>

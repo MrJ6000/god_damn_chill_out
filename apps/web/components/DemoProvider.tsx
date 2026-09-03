@@ -18,6 +18,7 @@ import {
   executeApproved,
   loadBlastRadius,
   loadInbox,
+  NORMAL_DEMO_INVOICE_ID,
   runDirectBypass,
   selectReceiptForNavigation,
 } from "@/lib/demoWorkflow";
@@ -150,7 +151,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   }, [beginRun, failRun, finishRun, router]);
 
   const executeScene = useCallback(async (planOverride?: ReturnType<typeof selectPlan>) => {
-    const id = beginRun("正在執行政策判定為 ALLOW 的付款…");
+    const id = beginRun(`正在執行示範付款 ${NORMAL_DEMO_INVOICE_ID}…`);
     if (id === undefined) return;
     try {
       const plan = planOverride ?? selectPlan(state);
@@ -195,7 +196,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         plan,
         scenario: "normal",
       }));
-      setPhase("正在執行政策判定為 ALLOW 的付款…");
+      setPhase(`正在執行示範付款 ${NORMAL_DEMO_INVOICE_ID}…`);
       const execution = await executeApproved(plan);
       if (runId.current !== id) return;
       const destination = selectReceiptForNavigation(execution);

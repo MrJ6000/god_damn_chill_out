@@ -43,6 +43,36 @@ forge script script/Deploy.s.sol \
 | 6 | 駭客直接繞過 Session Key（新合約 0x7404…033f，NotAiSession 被拒） | 0xd85d780afa818d24af8233aa419e59e2b25c62b77b290da312ec29fd39887398 |
 | 7 | 正常付款成功（合約 0x29d3…1f55，25 桶版，只用 Session Key） | 0xa906df870e1cf32c1e16c923e4fb65b5a28174dd197d9a775148a0002c7dbab0 |
 | 8 | Direct Bypass，收款人為 Hacker 0x8888…8888（NotAiSession 被拒） | 0x3c74bb4e432007b250392de205d00ebdd27642d1323aea13bcc63eb8e015c477 |
+| 9 | 正常付款成功（合約 0x29d3…1f55，經 executeTransfer 包裝器的 ERC-4337 路徑） | 0x93e5059f2bd85cb67291f5f5f8eea154af679b2fcd46ef89d60e2d65151f69d4 |
+| 10 | 正常付款成功（合約 0x29d3…1f55，經 executeTransfer 包裝器的 ERC-4337 路徑） | 0x50eed4028c975440296c8934d60099ec6a2eba8726fc09cb60e65c8220c51ed1 |
+
+## 現行合約的四筆鏈上證據（整理，2026-09-04 彙整）
+
+- 合約 TreasuryPolicyModule：`0x29d31dB1A9f694181a2793288aa6903a434E1F55`
+- 鏈：Base Sepolia（chainId 84532）
+- 瀏覽器：https://sepolia.basescan.org
+
+| # | 情境 | 金額 | 區塊 | 外層交易狀態 | gasUsed | 執行方式 |
+|---|---|---|---|---|---|---|
+| 7 | 正常付款成功 | 見鏈上 `Transferred` 事件 | 46205662 | 1 success | 577794 | Session Key，ERC-4337 路徑 |
+| 9 | 正常付款成功 | 1 USDC（raw `1000000`） | 46246783 | 1 success | 336933 | `executeTransfer()` 包裝器送出的 ERC-4337 路徑；鏈上實際為 EntryPoint → Smart Account → `aiTransfer` |
+| 10 | 正常付款成功 | 1 USDC（raw `1000000`） | 46247030 | 1 success | 302769 | 同 #9 |
+| 8 | Direct Bypass，收款人 Hacker `0x8888…8888`（`NotAiSession` 被拒） | 未成交，無資金移動 | 46205664 | **0 failed** | 25139 | 繞過前端與後端，直接以 session key 送出 |
+
+BaseScan 連結：
+
+- #7 https://sepolia.basescan.org/tx/0xa906df870e1cf32c1e16c923e4fb65b5a28174dd197d9a775148a0002c7dbab0
+- #9 https://sepolia.basescan.org/tx/0x93e5059f2bd85cb67291f5f5f8eea154af679b2fcd46ef89d60e2d65151f69d4
+- #10 https://sepolia.basescan.org/tx/0x50eed4028c975440296c8934d60099ec6a2eba8726fc09cb60e65c8220c51ed1
+- #8 https://sepolia.basescan.org/tx/0x3c74bb4e432007b250392de205d00ebdd27642d1323aea13bcc63eb8e015c477
+
+補充說明：
+
+- #9、#10 於 2026-09-01 11:24 / 11:32 UTC 送出，收款人為 VEN-001 ABC Cloud `0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27`；`invoice_id` 分別為 `INV-EVIDENCE-1788261849091` 與 `INV-EVIDENCE-1788262344366`，以時間戳確保不會觸發合約的重複付款保護。
+- #8 的外層交易狀態即為 `0 (failed)`，gasUsed 僅 25139，與「直接呼叫合約、在第一道 `NotAiSession` 檢查即 revert」一致；**不是**外層成功、內層 UserOp 失敗的情形。
+- 合約 USDC 餘額 **18.5 USDC**（raw `18500000`）為 **2026-09-01 查詢時間點的快照**，不是固定值，每次示範付款都會改變。
+- 本節不含任何私鑰、API key 或 session approval 字串。
+
 
 ## PR #9 Review 修復備註（M2, 8/30）
 - 目前合約位址 `0xA74b27069bc2391f0Dd489f09cA6C30217aD549b` 已修復 review 提出的

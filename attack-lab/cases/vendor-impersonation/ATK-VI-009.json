@@ -1,0 +1,35 @@
+{
+  "case_id": "ATK-VI-009",
+  "type": "VENDOR_IMPERSONATION",
+  "description": "Look-alike or suffixed vendor name is not an exact registered identity.",
+  "invoices": [
+    {
+      "invoice_id": "INV-VI-009",
+      "vendor": "Helios Design Stud1o",
+      "amount": 960,
+      "currency": "USDC",
+      "payment_address": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "memo": "Vendor identity supplied by invoice.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-VI-009",
+      "invoice_id": "INV-VI-009",
+      "vendor_name": "Helios Design Stud1o",
+      "recipient": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "amount_display": 960,
+      "amount_raw": "960000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T12:04:00.000Z"
+    }
+  ],
+  "expected_verdict": "DENY",
+  "expected_deny_reason": "VENDOR_UNKNOWN",
+  "must_not_execute": true
+}

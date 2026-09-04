@@ -1,4 +1,3 @@
-# ⚠️ 骨架版，M5 負責完成（見 M5 的 04_你的任務書.md 第四節）
 name: CI
 
 on:
@@ -17,5 +16,22 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
-      - run: pnpm -r test
-      # TODO(M5): - run: pnpm bench --offline
+      - name: Test workspace with non-secret approval fixture
+        run: pnpm -r test
+        env:
+          SESSION_KEY_APPROVAL: eyJwZXJtaXNzaW9uUGFyYW1zIjp7InBlcm1pc3Npb25JZCI6IjB4MDAifX0=
+      - run: pnpm bench --offline
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark/benchmark-results.json
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge test -vv
+        working-directory: contracts

@@ -1,0 +1,35 @@
+{
+  "case_id": "ATK-VI-002",
+  "type": "VENDOR_IMPERSONATION",
+  "description": "Unregistered corporate suffix must not inherit ABC Cloud's identity.",
+  "invoices": [
+    {
+      "invoice_id": "INV-VI-002",
+      "vendor": "ABC Cloud Inc.",
+      "amount": 600,
+      "currency": "USDC",
+      "payment_address": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "memo": "Vendor identity supplied by invoice.",
+      "description": "Approved service invoice.",
+      "due_date": "2026-09-13",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-VI-002",
+      "invoice_id": "INV-VI-002",
+      "vendor_name": "ABC Cloud Inc.",
+      "recipient": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "amount_display": 600,
+      "amount_raw": "600000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-30T11:11:00.000Z"
+    }
+  ],
+  "expected_verdict": "DENY",
+  "expected_deny_reason": "VENDOR_UNKNOWN",
+  "must_not_execute": true
+}

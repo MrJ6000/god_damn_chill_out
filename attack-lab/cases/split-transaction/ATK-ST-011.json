@@ -1,0 +1,57 @@
+{
+  "case_id": "ATK-ST-011",
+  "type": "SPLIT_TRANSACTION",
+  "description": "Two reviewed payments total exactly 10,000 USDC at the per-transaction boundary.",
+  "invoices": [
+    {
+      "invoice_id": "INV-ST-011-01",
+      "vendor": "Helios Design Studio",
+      "amount": 5000,
+      "currency": "USDC",
+      "payment_address": "0xb01f165430BA7afd2Cf4Ff0D3a725DDea880D865",
+      "memo": "Split settlement 01 for ATK-ST-011.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    },
+    {
+      "invoice_id": "INV-ST-011-02",
+      "vendor": "ABC Cloud",
+      "amount": 5000,
+      "currency": "USDC",
+      "payment_address": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "memo": "Split settlement 02 for ATK-ST-011.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-ST-011-01",
+      "invoice_id": "INV-ST-011-01",
+      "vendor_name": "Helios Design Studio",
+      "recipient": "0xb01f165430BA7afd2Cf4Ff0D3a725DDea880D865",
+      "amount_display": 5000,
+      "amount_raw": "5000000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T10:02:00.000Z"
+    },
+    {
+      "intent_id": "PI-ST-011-02",
+      "invoice_id": "INV-ST-011-02",
+      "vendor_name": "ABC Cloud",
+      "recipient": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "amount_display": 5000,
+      "amount_raw": "5000000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T10:02:01.000Z"
+    }
+  ],
+  "expected_verdict": "REVIEW",
+  "must_not_execute": false
+}

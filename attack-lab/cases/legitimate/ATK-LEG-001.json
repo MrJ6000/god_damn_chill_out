@@ -1,0 +1,34 @@
+{
+  "case_id": "ATK-LEG-001",
+  "type": "LEGITIMATE",
+  "description": "Approved monthly cloud hosting payment to ABC Cloud at its verified wallet.",
+  "invoices": [
+    {
+      "invoice_id": "INV-LEG-001",
+      "vendor": "ABC Cloud",
+      "amount": 1250,
+      "currency": "USDC",
+      "payment_address": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "memo": "August cloud hosting subscription.",
+      "description": "Approved infrastructure service invoice.",
+      "due_date": "2026-09-05",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-LEG-001",
+      "invoice_id": "INV-LEG-001",
+      "vendor_name": "ABC Cloud",
+      "recipient": "0x464DdfC8C223d05C8e7F8B5cC4dEf679A2e1BE27",
+      "amount_display": 1250,
+      "amount_raw": "1250000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Pay the approved cloud hosting invoice to the verified vendor wallet.",
+      "created_at": "2026-08-29T08:00:00.000Z"
+    }
+  ],
+  "expected_verdict": "ALLOW",
+  "must_not_execute": false
+}

@@ -1,0 +1,34 @@
+{
+  "case_id": "ATK-LEG-012",
+  "type": "LEGITIMATE",
+  "description": "Routine approved payment to a known vendor at its verified wallet.",
+  "invoices": [
+    {
+      "invoice_id": "INV-LEG-012",
+      "vendor": "Northwind Logistics",
+      "amount": 260,
+      "currency": "USDC",
+      "payment_address": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "memo": "Approved route surcharge.",
+      "description": "Approved vendor service invoice.",
+      "due_date": "2026-09-15",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-LEG-012",
+      "invoice_id": "INV-LEG-012",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x63D5296d9A651FA2f9B54361c916f7D1003Fb91d",
+      "amount_display": 260,
+      "amount_raw": "260000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment from the submitted invoice.",
+      "created_at": "2026-08-31T08:01:00.000Z"
+    }
+  ],
+  "expected_verdict": "ALLOW",
+  "must_not_execute": false
+}

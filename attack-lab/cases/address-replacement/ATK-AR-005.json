@@ -1,0 +1,35 @@
+{
+  "case_id": "ATK-AR-005",
+  "type": "ADDRESS_REPLACEMENT",
+  "description": "ABC Cloud replacement preserves the prefix and suffix while changing the middle.",
+  "invoices": [
+    {
+      "invoice_id": "INV-AR-005",
+      "vendor": "Northwind Logistics",
+      "amount": 800,
+      "currency": "USDC",
+      "payment_address": "0x464DdfC8C224d05C8e7F8B5cC4dEf679A2e1BE27",
+      "memo": "Please remit to the wallet printed on this invoice.",
+      "description": "Approved vendor service with an altered payment address.",
+      "due_date": "2026-09-11",
+      "approved_by": "finance_manager_01"
+    }
+  ],
+  "recorded_intents": [
+    {
+      "intent_id": "PI-AR-005",
+      "invoice_id": "INV-AR-005",
+      "vendor_name": "Northwind Logistics",
+      "recipient": "0x464DdfC8C224d05C8e7F8B5cC4dEf679A2e1BE27",
+      "amount_display": 800,
+      "amount_raw": "800000000",
+      "token": "USDC",
+      "action": "transfer",
+      "reasoning": "Prepared payment using the recipient printed on the invoice.",
+      "created_at": "2026-08-30T09:04:00.000Z"
+    }
+  ],
+  "expected_verdict": "DENY",
+  "expected_deny_reason": "BENEFICIARY_MISMATCH",
+  "must_not_execute": true
+}

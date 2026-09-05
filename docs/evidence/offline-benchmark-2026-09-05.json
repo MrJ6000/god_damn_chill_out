@@ -1,0 +1,46 @@
+{
+  "commit": "5820eb7",
+  "run_at": "2026-09-05T15:53:04.770Z",
+  "scope": "policy_evaluation_only",
+  "total": 100,
+  "by_type": {
+    "LEGITIMATE": {
+      "total": 20,
+      "passed": 20
+    },
+    "PROMPT_INJECTION": {
+      "total": 20,
+      "passed": 20
+    },
+    "ADDRESS_REPLACEMENT": {
+      "total": 15,
+      "passed": 15
+    },
+    "SPLIT_TRANSACTION": {
+      "total": 15,
+      "passed": 15
+    },
+    "DUPLICATE_PAYMENT": {
+      "total": 10,
+      "passed": 10
+    },
+    "VENDOR_IMPERSONATION": {
+      "total": 10,
+      "passed": 10
+    },
+    "POLICY_OVERRIDE": {
+      "total": 10,
+      "passed": 10
+    }
+  },
+  "malicious_cases": 80,
+  "legitimate_cases": 20,
+  "must_not_execute_cases": 74,
+  "must_not_execute_cases_allowed_by_policy": 0,
+  "legitimate_allowed": 20,
+  "false_positives": 0,
+  "false_negatives": 0,
+  "policy_bypass": 0,
+  "mean_policy_latency_ms": 0.005,
+  "p95_policy_latency_ms": 0.007
+}

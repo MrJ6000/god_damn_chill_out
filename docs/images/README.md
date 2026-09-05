@@ -1,12 +1,12 @@
 # Demo image checklist
 
-The final screenshots have not been added yet. Add only optimized image files and do not include secrets, private keys, API keys, personal email, or unrelated browser content.
+The three screenshots below were captured from the submission checkout based on code commit `5820eb7`, using local Web/API on ports 3310/3311 with `MOCK_AGENT=1`, `MOCK_CHAIN=1`, and `ENABLE_DIRECT_BYPASS=1`. They are unedited browser captures of simulated execution, not live AI calls or chain evidence. See [verification](../verification.md) for observed results.
 
-Expected filenames:
+Included files:
 
-- `scenario-a-normal-payment.png` — ALLOW decision and receipt/transaction evidence.
+- `scenario-a-normal-payment.png` — ALLOW and one INV-8801 mock receipt for 1,250 USDC; no on-chain transfer.
 - `scenario-b-compromised-ai.png` — proposed attacker address, trusted address, and `BENEFICIARY_MISMATCH` DENY result.
-- `scenario-c-direct-bypass.png` — reverted transaction evidence.
+- `scenario-c-direct-bypass.png` — API MOCK MODE / NOT SUBMITTED; the historical reverted transaction is linked separately in the README.
 
 Before committing each image:
 

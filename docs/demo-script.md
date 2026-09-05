@@ -1,49 +1,34 @@
-# PolicyVault Sentinel — 3-minute demo script
+# 三分鐘展示：尬電商一下｜PolicyVault Sentinel
 
-This script keeps every security claim tied to visible evidence. If the live chain or API is unavailable, use the verified transaction links below and say that the live dependency is unavailable; do not describe cached or mock data as a live transaction.
+建議長度為三分鐘，正式時限仍以主辦單位規則為準。全程圍繞同一個問題：**發票把 AI 帶偏之後，付款授權如何守住？**
 
-## Before the presentation
+## 展示前
 
-- Run `pnpm dev` and confirm the web app reports the expected API/runtime source.
-- Coordinate any data reset with the API owner. The web reset control does not necessarily erase backend payment history.
-- Open the two BaseScan links in separate tabs before presenting.
-- Keep `.env` files, private keys, API keys, and terminal history out of the recording.
-- Keep a local screen recording or screenshots as a fallback, but do not commit the video to Git.
-- Confirm the benchmark evidence comes from `benchmark/benchmark-results.json`.
+1. 依 [重現指南](reproduce.md) 啟動乾淨的模擬環境，確認 API health 與畫面來源。
+2. 預先開啟 [歷史成功付款](https://sepolia.basescan.org/tx/0xa906df870e1cf32c1e16c923e4fb65b5a28174dd197d9a775148a0002c7dbab0)、[歷史直接呼叫失敗](https://sepolia.basescan.org/tx/0x3c74bb4e432007b250392de205d00ebdd27642d1323aea13bcc63eb8e015c477) 與 [驗證紀錄](verification.md)。
+3. 說明本次模式。以下講稿預設「模擬 Agent＋模擬付款，另查歷史鏈上證據」。
+4. 正常付款只執行一次；前端重設不會清除後端付款紀錄。重錄從新的 demo clone 開始。
+5. 準備備份畫面／影片，避免將金鑰、私人聯絡資料或其他瀏覽器分頁錄入。
 
-## Live script
+## 操作與講稿
 
-| Time | Action | Suggested narration | Evidence to point at |
-| --- | --- | --- | --- |
-| 0:00–0:20 | Show the home page. | “AI can read invoices and propose payments, but it is not the security boundary. PolicyVault assumes the AI may be manipulated.” | The three scenario buttons and the deterministic-policy message. |
-| 0:20–0:55 | Click **① Normal payment** and follow the flow to the receipt. | “For a legitimate invoice, the proposed recipient matches the trusted vendor record, the amount is within policy, and execution is allowed.” | ALLOW decision, verified recipient, amount, receipt, and transaction link when live evidence is available. |
-| 0:55–1:35 | Return home and click **② AI compromised**. | “This invoice contains a convincing business-email-compromise instruction. We intentionally allow the agent layer to propose the attacker’s address. The deterministic policy compares it with the trusted beneficiary and denies execution.” | Proposed address versus verified address, `BENEFICIARY_MISMATCH`, DENY, and zero value executed. |
-| 1:35–1:58 | Return home and click **③ Direct attack**. | “An attacker now skips the AI and calls the payment policy contract directly. The transaction reverts because only the authorized smart-account path may execute the transfer.” | Reverted transaction and contract address. |
-| 1:58–2:22 | Click **View Blast Radius**. | “Even if the agent is compromised, its authority is constrained by token, recipient, per-transaction, rolling daily, expiry, duplicate, and approval controls.” | Current configuration values and source labels shown in the UI. |
-| 2:22–2:43 | Show the benchmark result in the repository or prepared terminal output. | “The offline adversarial suite contains 100 reproducible policy cases. In the recorded run, all expected outcomes matched and none of the 74 must-not-execute cases received an aggregate ALLOW verdict.” | The committed result file, including its policy-evaluation-only scope, run time, totals, and category counts. |
-| 2:43–3:00 | Return to the architecture or home page. | “We do not claim to detect every prompt injection. We assume the AI can fail, then enforce a deterministic boundary below it.” | Architecture and final tagline. |
+| 時間 | 操作 | 可直接使用的講稿 |
+| --- | --- | --- |
+| 0:00–0:25 | 首頁待付款清單 | 「我們是尬電商一下。財務希望用 AI 整理帳單，但帳單中的一句『收款帳戶已更換』，可能讓 AI 提出錯誤付款。我們要解決的是：AI 犯錯之後，資金還有沒有獨立的授權邊界。」 |
+| 0:25–0:55 | 「① 正常付款」，顯示收據 | 「這裡使用模擬 Agent 與模擬付款。系統先判定整批帳單，示範只執行 INV-8801。收款地址符合可信登錄資料，政策允許；收據明確標示未上鏈。」 |
+| 0:55–1:35 | 「② AI 遭入侵」，停留在兩個地址與拒絕原因 | 「同一個流程遇到惡意備註時，Agent 提出了攻擊者地址。政策不需要猜這段文字是否邪惡，只需核對可信收款資料。這裡顯示 BENEFICIARY_MISMATCH，付款在送出前被拒絕。」 |
+| 1:35–2:05 | 「③ 直接攻擊」，再切到失敗 BaseScan | 「本機結果是模擬，沒有送鏈。接著看歷史測試網交易：未授權帳戶直接呼叫財務合約時，因 NotAiSession 被拒絕。這證明這條直接呼叫路徑的限制，不是所有攻擊的完整證明。」 |
+| 2:05–2:25 | 查看 Blast Radius 或 README 架構 | 「付款必須經過受限 session 與合約的收款人、代幣、額度、到期等檢查。畫面的金庫總額是配置值；我們呈現的是授權範圍，不把它當成實際保住的損失。」 |
+| 2:25–2:45 | 開啟驗證紀錄與 benchmark | 「目前建置與 195 項測試通過，100 個離線政策案例符合預期。74 個不可執行案例的整體結果都不是 ALLOW。這組測試不呼叫模型、不提交交易。」 |
+| 2:45–3:00 | README 與 GitHub 連結 | 「PolicyVault Sentinel：讓 AI 提出付款，讓政策決定，再由鏈上合約執行。評審可以從 README 不需金鑰重現；我們也明列了尚未完成的生產安全與企業驗證。」 |
 
-## Verified chain evidence
+## 畫面與證據對照
 
-- Normal smart-account execution: [BaseScan transaction `0xa906…bab0`](https://sepolia.basescan.org/tx/0xa906df870e1cf32c1e16c923e4fb65b5a28174dd197d9a775148a0002c7dbab0)
-- Direct bypass rejected: [BaseScan transaction `0x3c74…5477`](https://sepolia.basescan.org/tx/0x3c74bb4e432007b250392de205d00ebdd27642d1323aea13bcc63eb8e015c477)
-- Treasury policy contract: [`0x29d3…1F55`](https://sepolia.basescan.org/address/0x29d31dB1A9f694181a2793288aa6903a434E1F55)
-- Smart account: [`0xeb6d…Ca2F`](https://sepolia.basescan.org/address/0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F)
+- 模擬正常付款：`INV-8801 / 1,250 USDC / MOCK_CHAIN`。
+- 歷史成功交易 `a906…bab0`：**0.5 USDC**，2026-08-31；不要與模擬收據混為同一筆。
+- 歷史失敗交易 `3c74…5477`：嘗試 1 USDC、實際 0 USDC；仍有 gas 成本。
+- 所有交易時間、區塊、狀態與驗證方法見 [verification.md](verification.md)。
 
-## Fallback rules
+## 備援方式
 
-1. If OpenAI is unavailable, state that the agent call is unavailable and use the recorded offline scenario. Do not call it a live model response.
-2. If the RPC or bundler is unavailable, show the already-verified BaseScan transaction and state its date/source. Do not claim a new transaction was submitted.
-3. If the API is unavailable, use the prepared recording or screenshots and say the live API is unavailable.
-4. If the UI displays cached evidence, explicitly call it cached evidence.
-5. Never expose secrets while troubleshooting on stage.
-
-## Rehearsal checklist
-
-- [ ] Scenario A reaches an ALLOW decision and the receipt is readable.
-- [ ] Scenario B visibly shows the proposed and trusted addresses plus `BENEFICIARY_MISMATCH`.
-- [ ] Scenario C opens the reverted BaseScan transaction.
-- [ ] Blast Radius values match the active configuration.
-- [ ] Benchmark result is the committed, reproducible offline output.
-- [ ] Presenter finishes in three minutes.
-- [ ] Backup recording is available outside the Git repository.
+如果模型、RPC 或 API 不可用，說明哪一項不可用，再使用標有來源的 [既有截圖](images/README.md)、錄影或歷史交易。不能將預錄、mock 或 HTTP 錯誤描述成當次真實模型回應或鏈上拒絕。若改為 live demo，另行核對當次 runtime、金額及最終 receipt。

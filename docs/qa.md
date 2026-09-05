@@ -38,7 +38,7 @@ The target users are organizations experimenting with AI-assisted accounts-payab
 
 ## 10. Is the on-chain demo real?
 
-The repository records two Base Sepolia transactions: a successful smart-account execution and a reverted direct bypass. Open the transaction receipts during judging. If the live application is using cached evidence or a mock runtime, say so explicitly; the BaseScan records remain the chain evidence.
+The repository records historical Base Sepolia success and rejection transactions, including three successful transfers (0.5, 1, and 1 USDC) and one rejected direct call. See [the current verification record](verification.md) for receipt checks and timestamps. If the application uses cached evidence or a mock runtime, say so explicitly; those modes do not create a new chain transaction.
 
 - [Successful execution](https://sepolia.basescan.org/tx/0xa906df870e1cf32c1e16c923e4fb65b5a28174dd197d9a775148a0002c7dbab0)
 - [Rejected direct bypass](https://sepolia.basescan.org/tx/0x3c74bb4e432007b250392de205d00ebdd27642d1323aea13bcc63eb8e015c477)

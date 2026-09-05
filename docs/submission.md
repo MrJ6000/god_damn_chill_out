@@ -1,62 +1,110 @@
-# Submission copy and checklist
+# PolicyVault Sentinel｜繳交資料與表單文案
 
-Use this page as a source for the organizer form. Replace every `TODO` before final submission; do not infer missing team or publication details.
+本頁是 Google Form 的填寫底稿，可依實際欄位選用短版或完整版。尚未送出表單；主辦單位的正式欄位、字數與影片長度限制，以實際表單為準。繳交前請完成[檢查清單](submission-checklist.md)。
 
-## Project identity
+## 1. 專案與繳交資料
 
-- **Name:** PolicyVault Sentinel
-- **Tagline:** Let AI propose payments; let deterministic policy decide whether value can move.
-- **Repository:** [github.com/MrJ6000/god_damn_chill_out](https://github.com/MrJ6000/god_damn_chill_out)
-- **Demo URL:** **TODO — add deployed application URL**
-- **Video URL:** **TODO — add after upload**
-- **Track/category:** **TODO — confirm against the organizer form**
-- **Team members:** **TODO — add the organizer-approved public names**
+需要團隊補充的資訊集中在此表；請勿將「待提供」直接貼入正式表單。
 
-## Short description
+| 欄位 | 可填內容／目前狀態 |
+| --- | --- |
+| 專案名稱 | **PolicyVault Sentinel** |
+| 一句話介紹 | **讓 AI 提議付款，由明確規則與鏈上權限決定資金能否移動。** |
+| 團隊名稱 | **尬電商一下** |
+| 團隊成員 | 郭瀚澤：後端引擎整合（M2）；陳倢儀：UI/UX 介面（M4）；簡芷鈴：智能合約（M3）；彭冠維：AI Agent 工程師（M1）；楊皓丞：資安（M5） |
+| 聯絡人與聯絡方式 | **待提供**：由團隊直接填入官方表單，避免將私人聯絡資料提交至公開程式庫 |
+| 參賽賽道 | **第一賽道**；填表時核對官方選項的完整名稱 |
+| GitHub Repository | [MrJ6000/god_damn_chill_out](https://github.com/MrJ6000/god_damn_chill_out)；2026-09-05 準備時為 **PRIVATE**，繳交前須確認評審可存取 |
+| README | [GitHub README](https://github.com/MrJ6000/god_damn_chill_out#readme) |
+| 安裝與重現說明 | [docs/reproduce.md](reproduce.md)；可由 README 進入 |
+| 驗證與證據 | [docs/verification.md](verification.md)；可由 README 進入 |
+| 線上 Demo | **待提供**：可由評審直接開啟的網址；若無部署，須依官方規則確認本機重現與影片是否足以繳交 |
+| Demo 影片 | **待提供**：完成上傳、確認觀看權限後的影片網址 |
+| 簡報（若表單要求） | **待提供**：可由評審開啟的簡報連結 |
+| 官方 Google Form | **待提供**：主辦單位提供的正式繳交連結 |
 
-PolicyVault Sentinel is a defense-in-depth prototype for AI-assisted treasury payments. It assumes an AI agent may be manipulated, then validates the proposed payment against trusted beneficiary data and deterministic policy before a permission-scoped smart account can execute it.
+## 2. 專案簡介：短版
 
-## Full description
+PolicyVault Sentinel 是 AI 財務付款的權限控管原型。即使發票備註誘導 AI 更換收款地址，AI 也只能提出付款建議；獨立政策引擎與鏈上合約會再檢查收款人、金額、期限與重複付款。專案提供可重現的離線政策測試，以及 Base Sepolia 測試網的歷史交易證據，呈現 AI 建議與資金授權之間的明確邊界。
 
-AI agents can extract payment intent from invoices, but invoice text is untrusted. A realistic business-email-compromise message can persuade a model to replace a beneficiary address while the rest of the invoice looks legitimate. PolicyVault Sentinel deliberately demonstrates that failure instead of claiming universal prompt-injection detection.
+## 3. 專案簡介：完整版
 
-The agent produces structured payment intent. A deterministic policy engine checks vendor identity, beneficiary, token, transaction and rolling daily limits, session expiry, duplicate payment state, and required approval. The smart-account permission path is scoped to the treasury policy contract. The demo shows a normal payment, a compromised-agent proposal denied for beneficiary mismatch, and a direct contract bypass that reverts on Base Sepolia.
+企業將供應商付款交給 AI 處理時，發票備註可能夾帶「收款帳戶已變更」等惡意指令。AI 即使正確讀出金額與品項，仍可能把資金導向錯誤地址。PolicyVault Sentinel 以使用 AI 處理付款的財務人員與鏈上資金管理團隊為目標使用者，從「AI 可能已受操控」的情境設計付款權限。
 
-The repository includes 100 versioned attack cases and an offline policy benchmark runner. The committed run matched all 100 expected outcomes, allowed all 20 legitimate cases, and gave no aggregate `ALLOW` verdict to the 74 cases marked `must_not_execute`. The runner does not execute payments; on-chain execution evidence is listed separately below. These figures are recorded output, not estimates.
+AI 將工作需求與發票資料轉成結構化付款建議。決定性的政策引擎依可信供應商名冊、收款地址、代幣、單筆及滾動期間額度、工作階段期限、重複付款與核准狀態，產生允許、需覆核或拒絕的判定。允許的付款才進入執行流程；ZeroDev Kernel 智慧帳戶的受限權限與 TreasuryPolicyModule 合約再執行鏈上檢查。介面呈現判定原因、付款收據及資料來源，協助使用者理解 AI 做了什麼、付款是否執行。
 
-## Technology
+目前原型包含 Web、API、AI 代理、政策引擎、智慧帳戶整合與 Solidity 合約。儲存庫附有 100 個版本化案例及離線測試，其中 20 個為合法案例、80 個為惡意案例；本次重跑結果中，100 個案例均符合預期，74 個標記為不可執行的案例皆未得到案例彙總層級的 ALLOW。此測試只驗證政策判定，不呼叫即時 AI，也不執行付款。Base Sepolia 上的歷史成功付款與直接呼叫遭拒交易，另外提供鏈上證據。本專案尚非經安全審計的正式金融產品，也不宣稱能阻擋所有攻擊。
 
-- TypeScript monorepo with pnpm
-- Next.js web application and Fastify API
-- OpenAI structured-output agent with an offline recorded-intent path
-- Deterministic policy engine
-- ZeroDev Kernel smart account with permission/call policy
-- Solidity treasury policy contract on Base Sepolia
-- GitHub Actions with offline adversarial benchmark
+## 4. 問題、使用者與影響
 
-## Reproducible security evidence
+**問題定義**：AI 可以理解發票文字，但無法將發票中的每句指令都視為可信授權。當付款流程直接採用模型輸出，單一受污染備註就可能改變收款對象。財務人員需要能在 AI 提議之後、資金移動之前檢查的付款權限。
 
-- Attack cases: `attack-lab/cases/`
-- Case design: `attack-lab/CASES.md`
-- Offline command: `pnpm bench --offline`
-- Recorded result: `benchmark/benchmark-results.json`
-- Normal execution: [BaseScan transaction](https://sepolia.basescan.org/tx/0xa906df870e1cf32c1e16c923e4fb65b5a28174dd197d9a775148a0002c7dbab0)
-- Rejected direct bypass: [BaseScan transaction](https://sepolia.basescan.org/tx/0x3c74bb4e432007b250392de205d00ebdd27642d1323aea13bcc63eb8e015c477)
-- Treasury policy: [`0x29d31dB1A9f694181a2793288aa6903a434E1F55`](https://sepolia.basescan.org/address/0x29d31dB1A9f694181a2793288aa6903a434E1F55)
-- Smart account: [`0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F`](https://sepolia.basescan.org/address/0xeb6d274dAA1c821ae4A16Fac71C74B960750Ca2F)
+**目標使用者與情境**：正在嘗試 AI 付款助理的財務團隊，以及使用智慧帳戶管理穩定幣的團隊。示範情境是處理供應商 USDC 付款，並在正常付款、惡意更換收款地址、直接呼叫合約三種情況下檢查結果。
 
-## Scope statement
+**預期使用者價值**：保留 AI 協助理解付款工作的便利，同時讓收款人、金額及期間額度由可檢查的政策決定。判定原因與交易證據可協助人工覆核；Blast Radius 顯示工作階段仍被授予多少權限，讓管理者理解受操控時可能暴露的範圍。
 
-PolicyVault does not claim to detect all prompt injections. It demonstrates that a compromised model’s proposed payment can still be blocked by deterministic application and contract controls. The prototype is not represented as audited or production-ready.
+**目前可支持的影響陳述**：本原型已提供可重現的政策案例與測試網證據。尚未量測正式企業導入成效、實際節省工時或避免的真實損失，因此不將這些預期效益寫成已發生的成果。
 
-## Final submission checklist
+## 5. 創新與相對優勢
 
-- [ ] Replace every `TODO` above.
-- [ ] Confirm the repository or submission branch includes the latest M5 commit.
-- [ ] Confirm the required GitHub Actions jobs are green on the submission commit.
-- [ ] Run `pnpm bench --offline` and retain the unedited output/artifact.
-- [ ] Open both BaseScan links and verify their success/revert statuses.
-- [ ] Add the deployed demo URL and verify all three scenarios.
-- [ ] Upload the video outside Git and add its URL.
-- [ ] Confirm names, email addresses, sponsor-credit forms, and track selection through the organizer’s official channel.
-- [ ] Remove secrets and personal data from screenshots and video.
+本專案將 AI 產生付款建議、決定性政策判斷，以及智慧帳戶與合約的執行權限分開。可檢查的供應商資料與鏈上限制承擔授權責任；介面則把每次判定與實際交易證據連在一起。
+
+這個設計的展示重點是：即使 AI 已提出攻擊者希望的付款內容，仍可由獨立控制限制資金移動。相較於僅把付款限制寫入提示詞的流程，專案提供可讀取的檢查結果、受限的合約呼叫路徑與可查驗收據。這是本原型的設計取捨，並非對其他產品的完整效能比較，也不是全球首創宣稱。
+
+## 6. 技術實作與 AI 的角色
+
+| 層次 | 使用技術與責任 |
+| --- | --- |
+| 使用者介面 | Next.js：情境操作、政策理由、收據與資料來源標示 |
+| API 與整合 | Express、TypeScript：串接規劃、政策、執行與收據 |
+| AI 代理 | OpenAI 結構化輸出：把需求與發票資料轉為付款建議；另有從發票產生提案的模擬模式；離線 benchmark 使用預錄 intents |
+| 政策引擎 | 同步純函式：依可信資料與注入的狀態進行決定性檢查 |
+| 智慧帳戶 | ZeroDev Kernel 與受限權限：將執行路徑限制於允許的合約與函式 |
+| 鏈上政策 | Solidity TreasuryPolicyModule：檢查呼叫者、代幣、收款人、額度、期限、重複識別與核准 |
+| 重現與協作 | pnpm monorepo、Vitest、Foundry、GitHub Actions、版本化攻擊案例 |
+
+AI 適合把工作需求轉為結構化付款建議；付款授權則需要可重現的規則。原型從結構化發票 JSON 開始，未實作 OCR。支援 OpenAI 整合不代表每段展示都已呼叫即時模型，實際展示須標示當次使用的模式。
+
+## 7. 成果與證據
+
+| 可以陳述的成果 | 查驗入口 | 證據的適用範圍 |
+| --- | --- | --- |
+| 100 個版本化政策案例 | [案例設計](../attack-lab/CASES.md)、[案例資料](../attack-lab/cases/) | 20 合法、80 惡意；不是 100 次真實鏈上攻擊 |
+| 本次離線重跑符合所有案例預期 | [2026-09-05 原始結果](evidence/offline-benchmark-2026-09-05.json)、[重現步驟](reproduce.md) | 純政策測試；不呼叫即時 AI、不提交付款 |
+| 74 個 `must_not_execute` 案例未得到彙總 `ALLOW` | [測試執行器](../benchmark/run.ts)、[本次結果檔](evidence/offline-benchmark-2026-09-05.json) | 案例彙總為 `DENY` 優先於 `REVIEW`、再優先於 `ALLOW`；不能推導每個意圖都被拒絕或端到端付款全部受阻 |
+| 測試網歷史成功付款 0.5 USDC | [BaseScan 成功交易](https://sepolia.basescan.org/tx/0xa906df870e1cf32c1e16c923e4fb65b5a28174dd197d9a775148a0002c7dbab0) | 該筆歷史交易；不代表目前展示已完成新的付款 |
+| 測試網歷史直接呼叫遭拒 | [BaseScan 失敗交易](https://sepolia.basescan.org/tx/0x3c74bb4e432007b250392de205d00ebdd27642d1323aea13bcc63eb8e015c477) | 該筆交易 reverted；單一歷史收據不代表所有繞過路徑已驗證 |
+| 主分支驗證紀錄 | [準備時查驗的成功 CI](https://github.com/MrJ6000/god_damn_chill_out/actions/runs/33842721710)、[完整驗證說明](verification.md) | 此次成功紀錄屬於準備時的主分支 `5820eb7`；最終繳交版本仍須核對自己的 CI |
+
+本次離線結果的程式碼版本為 `5820eb7`，執行時間為 `2026-09-05T15:53:04.770Z`（UTC），原始輸出保留於上表。本次亦完成建置與 195 項測試；執行範圍見[驗證說明](verification.md)。繳交時仍需核對最終版本的 CI 與 artifact，建立結果與繳交 commit 的對應。
+
+## 8. 展示順序與影片內容
+
+建議依同一個付款工作流程拍攝，片長依官方規則調整。詳細操作可參考[示範腳本](demo-script.md)與[影片腳本](video-script.md)。
+
+1. **說明問題**：財務人員希望 AI 處理供應商付款；發票備註卻可能誘導它更換收款地址。
+2. **正常付款**：顯示發票、可信收款資料、政策判定，以及付款收據。使用歷史交易時明確標為歷史證據。
+3. **惡意備註**：顯示被操控的付款建議，再顯示 `BENEFICIARY_MISMATCH` 與拒絕理由，讓評審看見阻擋位置。
+4. **執行限制**：說明受限合約呼叫路徑，展示直接呼叫遭拒的測試網歷史交易及狀態。
+5. **重現入口**：顯示 GitHub README、離線測試命令與結果，最後說明限制及後續方向。
+
+每段畫面須能辨認「即時模型／離線既存意圖」及「mock／歷史鏈上證據／本次鏈上交易」。執行按鈕回應成功或出現交易 hash，尚不足以宣稱付款成功；需查驗對應交易結果。
+
+## 9. 限制與後續方向
+
+這是 Base Sepolia 測試網上的付款授權原型，尚未經正式安全審計。可信供應商名冊或 root 管理金鑰遭入侵、合約與外部依賴缺陷，以及正式金鑰保管與會計對帳，仍需獨立處理。政策允許的剩餘權限也可能被遭竊的工作階段金鑰使用。
+
+後續可驗證的方向包含：完整端到端攻擊測試、正式金鑰生命週期管理、安全審計、供應商資料治理與企業使用者驗證。詳見[威脅模型](threat-model.md)。
+
+## 10. 與評分項目的對應
+
+下表依團隊提供的第一輪評分截圖整理；截圖沒有提供正式表單欄位或影片長度上限。
+
+| 評分項目 | 權重 | 本次材料應讓評審看懂什麼 | 對應材料 |
+| --- | ---: | --- | --- |
+| 問題定義與 Impact | 35% | 誰面臨付款風險、惡意備註如何造成問題、權限分離帶來什麼價值 | 本頁第 2–5 節、README 問題與解法 |
+| 技術實作 | 30% | AI 的角色、授權邊界、已實作模組、重現方式與限制 | 本頁第 6–7、9 節、[重現指南](reproduce.md)、[驗證紀錄](verification.md) |
+| 成果展示 | 20% | 一條清楚的付款情境、正常與受攻擊結果、可核對的交易狀態 | 本頁第 8 節、Demo 影片、[示範腳本](demo-script.md) |
+| Open Source | 15% | 評審能取得程式碼、理解目錄、依 README 執行並確認授權 | [README](../README.md)、[重現指南](reproduce.md)、[LICENSE](../LICENSE)、[繳交檢查清單](submission-checklist.md) |
+
+填寫表單前，先補齊第 1 節資料，確認正式繳交版本及連結權限，再依表單欄位貼入本頁文案。表單成功送出的回執才是完成繳交的證據。

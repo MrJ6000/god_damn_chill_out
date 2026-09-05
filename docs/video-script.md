@@ -1,34 +1,22 @@
-# PolicyVault Sentinel — 2-minute video script
+# 約兩分鐘影片腳本
 
-Target length: 1:50–2:00. Record the application and browser only; exclude `.env` files, private keys, API keys, personal email, and unrelated browser tabs.
+這是建議剪輯稿，正式片長以 Google Form／主辦規則為準。團隊：**尬電商一下**；專案：**PolicyVault Sentinel**。最終影片網址集中填在 [提交資料](submission.md)，目前尚未完成影片發布。
 
-| Time | Visual | Voice-over / caption |
+| 時間 | 畫面 | 旁白／字幕 |
 | --- | --- | --- |
-| 0:00–0:10 | Title card and home page. | “Prompt injection can make an AI payment agent propose the wrong transfer. PolicyVault Sentinel assumes that failure will happen.” |
-| 0:10–0:28 | Architecture view: invoice → agent → deterministic policy → smart account. | “The model proposes intent. A deterministic policy engine verifies vendor, beneficiary, token, limits, approvals, and duplicates before execution.” |
-| 0:28–0:48 | Run **Normal payment** and show ALLOW/receipt. | “A valid invoice matches the trusted vendor record and passes policy.” |
-| 0:48–1:10 | Run **AI compromised** and zoom in on both addresses. | “A realistic invoice instruction persuades the agent to replace the beneficiary. PolicyVault does not need to recognize every injection: the address mismatch is enough to deny payment.” |
-| 1:10–1:28 | Run **Direct attack** and show the reverted BaseScan transaction. | “Skipping the AI does not bypass the contract. The direct call reverts because the caller lacks the authorized execution path.” |
-| 1:28–1:44 | Show Blast Radius and the benchmark summary. | “Authority remains bounded. The reproducible offline suite contains 100 policy cases; the committed run matched all expected decisions, and none of the 74 must-not-execute cases received an aggregate ALLOW verdict.” |
-| 1:44–1:58 | Closing title and repository link. | “PolicyVault Sentinel: let AI propose, but never let AI define the security boundary.” |
+| 0:00–0:12 | 團隊、專案名稱，接到待付款帳單 | 「如果 AI 幫公司付款，發票裡的一句惡意備註，就可能把收款地址換掉。AI 犯錯之後，誰來守住付款權限？」 |
+| 0:12–0:28 | README 架構：發票 → Agent → 政策 → 合約 | 「AI 只提出付款。PolicyVault 用可信供應商資料與確定性政策判定，再由受限智慧帳戶與鏈上合約執行。」 |
+| 0:28–0:48 | 正常付款、ALLOW、收據，保留 API MOCK MODE | 「這段是本機模擬。正常帳單通過規則後，示範只執行一筆。收據保留金額、收款人、政策版本與執行來源。」 |
+| 0:48–1:12 | 惡意帳單提案、兩個收款地址、拒絕原因 | 「接著，Agent 被備註帶往攻擊者地址。政策核對可信地址，直接拒絕這筆提案。畫面清楚指出收款地址不一致，付款未送出。」 |
+| 1:12–1:32 | 標「歷史 Base Sepolia 證據」，顯示成功及失敗交易 | 「歷史測試網交易另提供鏈上證據：正常路徑完成付款；未授權帳戶直接呼叫合約則遭拒絕。這些交易與剛才的模擬畫面分開查驗。」 |
+| 1:32–1:48 | benchmark 原始結果與 README 重現步驟 | 「100 個離線政策案例都符合預期，195 項測試通過。這組 benchmark 不呼叫即時 AI，也不提交鏈上交易。」 |
+| 1:48–2:00 | 專案名、團隊名、GitHub | 「讓 AI 提出付款，讓政策決定，再由鏈上合約執行。原始碼、重現方式與限制都在 GitHub。」 |
 
-## On-screen evidence
+## 製作與交付
 
-- Repository: [github.com/MrJ6000/god_damn_chill_out](https://github.com/MrJ6000/god_damn_chill_out)
-- Normal execution: [BaseScan](https://sepolia.basescan.org/tx/0xa906df870e1cf32c1e16c923e4fb65b5a28174dd197d9a775148a0002c7dbab0)
-- Rejected direct bypass: [BaseScan](https://sepolia.basescan.org/tx/0x3c74bb4e432007b250392de205d00ebdd27642d1323aea13bcc63eb8e015c477)
-- Offline result: `benchmark/benchmark-results.json`
-
-## Editing notes
-
-- Add captions for `ALLOW`, `DENY`, `BENEFICIARY_MISMATCH`, and `reverted`.
-- Keep both beneficiary addresses visible long enough to compare.
-- Do not label a mock, cached, or pre-recorded result as live.
-- Export the final video outside the repository and upload it to the organizer-approved platform.
-- Do not commit `.mp4`, `.mov`, or other large binary files.
-
-## Outstanding publication fields
-
-- Final video URL: **TODO — add after upload**
-- Final duration: **TODO — record after export**
-- Presenter name: **TODO — confirm team roster**
+- 畫面必須能讀到兩個收款地址、`BENEFICIARY_MISMATCH`、模擬標示與歷史交易狀態。
+- 旁白宣稱當次 live AI 或新付款之前，必須有對應執行紀錄。預設腳本使用模擬及歷史證據。
+- 不將 100 個離線政策案例描述成 100 次鏈上攻擊，也不宣稱保住 200 萬美元真實資金。
+- 成功交易 `a906…bab0` 是 **0.5 USDC**；完整證據見 [驗證紀錄](verification.md)。
+- 影片儲存在 Git 倉庫之外，依主辦指定平台上傳。最終確認聲音、字幕、解析度、時長及未登入觀看權限。
+- 主講者由團隊決定；正式成員與分工已在 [README](../README.md)。

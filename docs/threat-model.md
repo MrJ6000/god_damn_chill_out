@@ -8,7 +8,7 @@ This is a defense-in-depth prototype, not a claim of universal prompt-injection 
 
 ## Assets
 
-- Treasury tokens held by the smart account.
+- Treasury tokens held by the treasury policy contract; the Kernel smart account is the authorized caller.
 - Trusted vendor identities and beneficiary addresses.
 - Session-key authority and its expiry.
 - Approval and duplicate-payment state.

@@ -54,10 +54,10 @@ forge script script/Deploy.s.sol \
 
 | # | 情境 | 金額 | 區塊 | 外層交易狀態 | gasUsed | 執行方式 |
 |---|---|---|---|---|---|---|
-| 7 | 正常付款成功 | 見鏈上 `Transferred` 事件 | 46205662 | 1 success | 577794 | Session Key，ERC-4337 路徑 |
+| 7 | 正常付款成功 | 0.5 USDC（raw `500000`） | 46205662 | 1 success | 577794 | Session Key，ERC-4337 路徑 |
 | 9 | 正常付款成功 | 1 USDC（raw `1000000`） | 46246783 | 1 success | 336933 | `executeTransfer()` 包裝器送出的 ERC-4337 路徑；鏈上實際為 EntryPoint → Smart Account → `aiTransfer` |
 | 10 | 正常付款成功 | 1 USDC（raw `1000000`） | 46247030 | 1 success | 302769 | 同 #9 |
-| 8 | Direct Bypass，收款人 Hacker `0x8888…8888`（`NotAiSession` 被拒） | 未成交，無資金移動 | 46205664 | **0 failed** | 25139 | 繞過前端與後端，直接以 session key 送出 |
+| 8 | Direct Bypass，收款人 Hacker `0x8888…8888`（`NotAiSession` 被拒） | 嘗試 1 USDC（raw `1000000`）；成交 0 | 46205664 | **0 failed** | 25139 | 繞過前端與後端，直接以 session key 送出 |
 
 BaseScan 連結：
 
